@@ -20,9 +20,9 @@ const Navbar = () => {
           {/* Logo */}
           <a href="/" className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg bg-hero-gradient flex items-center justify-center">
-              <span className="text-primary-foreground font-display font-bold text-lg">B</span>
+              <span className="text-primary-foreground font-display font-bold text-lg">S</span>
             </div>
-            <span className="font-display font-bold text-xl text-foreground">BookPro</span>
+            <span className="font-display font-bold text-xl text-foreground">Shalean Projects</span>
           </a>
 
           {/* Desktop Navigation */}
@@ -42,7 +42,7 @@ const Navbar = () => {
           <div className="hidden md:flex items-center gap-3">
             <a href="tel:+1234567890" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
               <Phone className="w-4 h-4" />
-              <span className="text-sm font-medium">1-800-BOOK-PRO</span>
+              <span className="text-sm font-medium">Contact Us</span>
             </a>
             <Button variant="outline" size="sm">
               Log In

@@ -40,26 +40,26 @@ const Footer = () => {
           <div className="lg:col-span-2">
             <a href="/" className="flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-display font-bold text-xl">B</span>
+                <span className="text-primary-foreground font-display font-bold text-xl">S</span>
               </div>
-              <span className="font-display font-bold text-2xl">BookPro</span>
+              <span className="font-display font-bold text-2xl">Shalean Projects</span>
             </a>
             <p className="text-primary-foreground/70 mb-6 max-w-sm">
               The easiest way to find and book trusted service professionals. 
               Quality services at your fingertips.
             </p>
             <div className="space-y-3">
-              <a href="mailto:hello@bookpro.com" className="flex items-center gap-3 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
+              <a href="mailto:hello@shalean.com" className="flex items-center gap-3 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
                 <Mail className="w-5 h-5" />
-                hello@bookpro.com
+                hello@shalean.com
               </a>
-              <a href="tel:+18001234567" className="flex items-center gap-3 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
+              <a href="tel:+27123456789" className="flex items-center gap-3 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
                 <Phone className="w-5 h-5" />
-                1-800-BOOK-PRO
+                Contact Us
               </a>
               <p className="flex items-center gap-3 text-primary-foreground/70">
                 <MapPin className="w-5 h-5" />
-                123 Service Street, NY 10001
+                South Africa
               </p>
             </div>
           </div>
@@ -112,7 +112,7 @@ const Footer = () => {
       <div className="border-t border-primary-foreground/10">
         <div className="container py-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-primary-foreground/60 text-sm">
-            © 2026 BookPro. All rights reserved.
+            © 2026 Shalean Projects. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             {socialLinks.map((social) => (
