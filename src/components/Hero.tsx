@@ -1,3 +1,5 @@
+"use client";
+
 import { Search, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -9,7 +11,7 @@ const Hero = () => {
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img
-          src={heroBg}
+          src={heroBg.src}
           alt="City skyline"
           className="w-full h-full object-cover"
         />

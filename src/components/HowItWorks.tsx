@@ -1,3 +1,5 @@
+"use client";
+
 import { motion } from "framer-motion";
 import { Search, Calendar, CreditCard, Star } from "lucide-react";
 

@@ -32,7 +32,13 @@ cd <YOUR_PROJECT_NAME>
 # Step 3: Install the necessary dependencies.
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Set up Supabase environment variables.
+# Create a .env.local file in the root directory with your Supabase credentials:
+# NEXT_PUBLIC_SUPABASE_URL=your-project-url
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+# Get these from: https://supabase.com/dashboard/project/book-earn/settings/api
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
@@ -54,11 +60,12 @@ npm run dev
 
 This project is built with:
 
-- Vite
+- Next.js
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (Database & Backend)
 
 ## How can I deploy this project?
 
@@ -71,3 +78,31 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Supabase Setup
+
+This project uses Supabase for database and backend services. To set up Supabase:
+
+1. **Get your Supabase credentials:**
+   - Go to your [Supabase Dashboard](https://supabase.com/dashboard/project/book-earn/settings/api)
+   - Navigate to Settings > API
+   - Copy your Project URL and anon/public key
+
+2. **Create environment variables:**
+   - Create a `.env.local` file in the root directory
+   - Add the following variables:
+     ```
+     NEXT_PUBLIC_SUPABASE_URL=your-project-url
+     NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+     ```
+
+3. **Use Supabase in your code:**
+   - **Client-side:** Import from `@/lib/supabase`
+     ```typescript
+     import { supabase } from '@/lib/supabase'
+     ```
+   - **Server-side (Server Components/Actions):** Import from `@/lib/supabase-server`
+     ```typescript
+     import { createClient } from '@/lib/supabase-server'
+     const supabase = await createClient()
+     ```
