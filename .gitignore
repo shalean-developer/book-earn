@@ -15,8 +15,8 @@ node_modules
 # Testing
 /coverage
 
-# Next.js
-/.next
+/ # Next.js
+**/.next
 /out
 /build
 /dist
