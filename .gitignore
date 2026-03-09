@@ -1,33 +1,10 @@
-<<<<<<< HEAD
-node_modules
-.next
-dist
-out
-.turbo
-.vercel
-
-# Logs
-=======
 # Logs
 logs
 *.log
->>>>>>> 98a319647bdbef6f37bdec248e6be794324e3f3b
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-<<<<<<< HEAD
-*.log
-
-# Env
-.env
-.env.local
-.env.*.local
-
-# OS
-.DS_Store
-Thumbs.db
-=======
 lerna-debug.log*
 
 # Dependencies
@@ -39,10 +16,8 @@ node_modules
 /coverage
 
 # Next.js
-/.next/
-/out/
-
-# Production
+/.next
+/out
 /build
 /dist
 /dist-ssr
@@ -50,11 +25,6 @@ node_modules
 # Misc
 .DS_Store
 *.pem
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # Local env files
 .env
@@ -77,4 +47,3 @@ next-env.d.ts
 *.njsproj
 *.sln
 *.sw?
->>>>>>> 98a319647bdbef6f37bdec248e6be794324e3f3b
