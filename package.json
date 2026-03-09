@@ -1,0 +1,10 @@
+{
+  "name": "shalean",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix shalean-app",
+    "build": "npm run build --prefix shalean-app",
+    "start": "npm run start --prefix shalean-app",
+    "lint": "npm run lint --prefix shalean-app"
+  }
+}
