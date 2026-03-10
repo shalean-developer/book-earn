@@ -1,4 +1,4 @@
-import { Instagram, Twitter, Behance } from "lucide-react";
+import { Instagram, Twitter } from "lucide-react";
 
 const Footer = () => {
   const navigation = ["Home", "Features", "Service", "How it works", "Pricing", "FAQ"];
@@ -7,7 +7,6 @@ const Footer = () => {
 
   const social = [
     { label: "X", icon: <Twitter className="h-4 w-4" /> },
-    { label: "Behance", icon: <Behance className="h-4 w-4" /> },
     { label: "Instagram", icon: <Instagram className="h-4 w-4" /> },
   ];
 
