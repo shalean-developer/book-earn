@@ -40,6 +40,56 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${outfit.variable} font-sans`}>
+        <script
+          type="application/ld+json"
+          // Local SEO: describe Shalean as a Cape Town cleaning business
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "LocalBusiness",
+              name: "Shalean Cleaning Services",
+              description:
+                "Professional home, office and Airbnb cleaning services in Cape Town and surrounding suburbs.",
+              url: "https://shalean.com",
+              telephone: "+27 87 153 5250",
+              areaServed: [
+                "Cape Town",
+                "Sea Point",
+                "Gardens",
+                "Claremont",
+                "Constantia",
+                "Durbanville",
+                "Table View",
+                "Century City",
+                "Observatory",
+              ],
+              address: {
+                "@type": "PostalAddress",
+                addressLocality: "Cape Town",
+                addressCountry: "ZA",
+              },
+              sameAs: [],
+              contactPoint: [
+                {
+                  "@type": "ContactPoint",
+                  telephone: "+27 87 153 5250",
+                  contactType: "customer service",
+                  areaServed: "ZA",
+                  availableLanguage: ["en"],
+                },
+                {
+                  "@type": "ContactPoint",
+                  telephone: "+27 82 591 5525",
+                  contactType: "customer service",
+                  contactOption: "WhatsApp",
+                  areaServed: "ZA",
+                  availableLanguage: ["en"],
+                },
+              ],
+              serviceType: "Cleaning Service",
+            }),
+          }}
+        />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -1,130 +1,110 @@
-import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin } from "lucide-react";
+import { Instagram, Twitter, Behance } from "lucide-react";
 
 const Footer = () => {
-  const footerLinks = {
-    services: [
-      { name: "Home Cleaning", href: "#" },
-      { name: "Plumbing", href: "#" },
-      { name: "Electrical", href: "#" },
-      { name: "Car Services", href: "#" },
-      { name: "Pest Control", href: "#" },
-    ],
-    company: [
-      { name: "About Us", href: "#" },
-      { name: "Careers", href: "#" },
-      { name: "Press", href: "#" },
-      { name: "Blog", href: "#" },
-      { name: "Contact", href: "#" },
-    ],
-    support: [
-      { name: "Help Center", href: "#" },
-      { name: "Safety", href: "#" },
-      { name: "Terms of Service", href: "#" },
-      { name: "Privacy Policy", href: "#" },
-      { name: "Cookie Policy", href: "#" },
-    ],
-  };
+  const navigation = ["Home", "Features", "Service", "How it works", "Pricing", "FAQ"];
+  const whatWeDo = ["Workflow Automation", "Collaboration Tools", "Integrations", "How it works", "Policy"];
+  const support = ["FAQ", "Collaboration", "Hire Me", "Licensing & Usage", "Feedback", "Resources"];
 
-  const socialLinks = [
-    { icon: <Facebook className="w-5 h-5" />, href: "#", label: "Facebook" },
-    { icon: <Twitter className="w-5 h-5" />, href: "#", label: "Twitter" },
-    { icon: <Instagram className="w-5 h-5" />, href: "#", label: "Instagram" },
-    { icon: <Linkedin className="w-5 h-5" />, href: "#", label: "LinkedIn" },
+  const social = [
+    { label: "X", icon: <Twitter className="h-4 w-4" /> },
+    { label: "Behance", icon: <Behance className="h-4 w-4" /> },
+    { label: "Instagram", icon: <Instagram className="h-4 w-4" /> },
   ];
 
   return (
-    <footer className="bg-foreground text-primary-foreground">
-      <div className="container py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
-          {/* Brand */}
-          <div className="lg:col-span-2">
-            <a href="/" className="flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-display font-bold text-xl">S</span>
+    <footer className="bg-neutral-950 text-neutral-100 py-12">
+      <div className="container mx-auto px-4">
+        <div className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-black/90 px-6 py-10 md:px-10 md:py-12">
+          {/* Big watermark text */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-[-10%] flex justify-center opacity-10">
+            <span className="font-semibold tracking-[0.2em] text-[60px] md:text-[96px] lg:text-[128px]">
+              HOMYCLEAN
+            </span>
+          </div>
+
+          <div className="relative grid gap-10 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            {/* Left: Brand */}
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h2 className="text-xl font-semibold tracking-tight">HomyClean</h2>
+                <p className="max-w-sm text-sm text-neutral-400">
+                  Crafting meaningful designs that blend creativity, usability, and impact.
+                </p>
               </div>
-              <span className="font-display font-bold text-2xl">Shalean Projects</span>
-            </a>
-            <p className="text-primary-foreground/70 mb-6 max-w-sm">
-              The easiest way to find and book trusted service professionals. 
-              Quality services at your fingertips.
-            </p>
-            <div className="space-y-3">
-              <a href="mailto:hello@shalean.com" className="flex items-center gap-3 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-                <Mail className="w-5 h-5" />
-                hello@shalean.com
-              </a>
-              <a href="tel:+27123456789" className="flex items-center gap-3 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-                <Phone className="w-5 h-5" />
-                Contact Us
-              </a>
-              <p className="flex items-center gap-3 text-primary-foreground/70">
-                <MapPin className="w-5 h-5" />
-                South Africa
-              </p>
+
+              <div className="flex items-center gap-3 text-neutral-400">
+                {social.map((item) => (
+                  <button
+                    key={item.label}
+                    aria-label={item.label}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/60 text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
+                  >
+                    {item.icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Columns */}
+            <div className="grid gap-8 text-sm md:grid-cols-3">
+              <div>
+                <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                  Navigation
+                </h3>
+                <ul className="space-y-2">
+                  {navigation.map((item) => (
+                    <li key={item}>
+                      <a href="#" className="text-neutral-300 transition hover:text-white">
+                        {item}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                  What we do
+                </h3>
+                <ul className="space-y-2">
+                  {whatWeDo.map((item) => (
+                    <li key={item}>
+                      <a href="#" className="text-neutral-300 transition hover:text-white">
+                        {item}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                  Support
+                </h3>
+                <ul className="space-y-2">
+                  {support.map((item) => (
+                    <li key={item}>
+                      <a href="#" className="text-neutral-300 transition hover:text-white">
+                        {item}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
 
-          {/* Services */}
-          <div>
-            <h4 className="font-display font-semibold text-lg mb-4">Services</h4>
-            <ul className="space-y-3">
-              {footerLinks.services.map((link) => (
-                <li key={link.name}>
-                  <a href={link.href} className="text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-                    {link.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Company */}
-          <div>
-            <h4 className="font-display font-semibold text-lg mb-4">Company</h4>
-            <ul className="space-y-3">
-              {footerLinks.company.map((link) => (
-                <li key={link.name}>
-                  <a href={link.href} className="text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-                    {link.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Support */}
-          <div>
-            <h4 className="font-display font-semibold text-lg mb-4">Support</h4>
-            <ul className="space-y-3">
-              {footerLinks.support.map((link) => (
-                <li key={link.name}>
-                  <a href={link.href} className="text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-                    {link.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="border-t border-primary-foreground/10">
-        <div className="container py-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-primary-foreground/60 text-sm">
-            © 2026 Shalean Projects. All rights reserved.
-          </p>
-          <div className="flex items-center gap-4">
-            {socialLinks.map((social) => (
-              <a
-                key={social.label}
-                href={social.href}
-                aria-label={social.label}
-                className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center text-primary-foreground/70 hover:bg-primary hover:text-primary-foreground transition-colors"
-              >
-                {social.icon}
+          {/* Bottom bar */}
+          <div className="relative mt-10 flex flex-col gap-4 border-t border-neutral-800 pt-6 text-xs text-neutral-500 md:flex-row md:items-center md:justify-between">
+            <p>©2025 HomyClean. All rights reserved</p>
+            <div className="flex items-center gap-6">
+              <a href="#" className="transition hover:text-neutral-200">
+                Privacy Policy
               </a>
-            ))}
+              <a href="#" className="transition hover:text-neutral-200">
+                Term of Use
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -133,3 +113,4 @@ const Footer = () => {
 };
 
 export default Footer;
+
