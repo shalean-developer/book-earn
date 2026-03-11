@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
 
     const { data: bookingRow, error: fetchError } = await supabase
-      .from<BookingRecord>("bookings")
+      .from("bookings")
       .select("*")
       .eq("paystack_reference", reference)
       .maybeSingle();
@@ -83,13 +83,14 @@ export async function POST(req: NextRequest) {
     const isSuccess = paystackStatus === "success";
 
     const { data: updatedBooking, error: updateError } = await supabase
-      .from<BookingRecord>("bookings")
+      .from("bookings")
       .update({
         status: isSuccess ? "confirmed" : "failed",
         paystack_status: paystackStatus ?? null,
-        paystack_transaction_id: verifyJson?.data?.id ?? null,
+        paystack_transaction_id:
+          verifyJson?.data?.id != null ? String(verifyJson.data.id) : null,
         paystack_raw_response: verifyJson,
-      } as Partial<BookingRecord>)
+      })
       .eq("paystack_reference", reference)
       .select("*")
       .maybeSingle();

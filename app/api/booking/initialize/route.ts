@@ -76,6 +76,7 @@ function mapToBookingRecord(
     date: booking.date,
     time: booking.time,
     instructions: booking.instructions,
+    apartment_unit: booking.apartmentUnit || "",
 
     base_amount: pricing.basePrice,
     discount_amount: pricing.discountAmount,
@@ -102,6 +103,13 @@ function generateReference() {
     "SHL-" + Math.random().toString(36).substring(2, 10).toUpperCase()
   );
 }
+
+type AvailableCleaner = {
+  id: string;
+  name: string | null;
+  avg_rating: number | null;
+  rating_count: number | null;
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -148,18 +156,16 @@ export async function POST(req: NextRequest) {
     // If the customer selected "any" cleaner, automatically assign
     // the best-rated available cleaner for the chosen area/date/time.
     if (booking.cleanerId === "any") {
-      const { data: availableCleaners, error: cleanersError } = await supabase.rpc<
+      const { data, error: cleanersError } = await supabase.rpc(
+        "get_available_cleaners",
         {
-          id: string;
-          name: string | null;
-          avg_rating: number | null;
-          rating_count: number | null;
-        }[]
-      >("get_available_cleaners", {
         p_working_area: booking.workingArea,
         p_booking_date: booking.date,
         p_booking_time: booking.time,
-      });
+        }
+      );
+
+      const availableCleaners = data as AvailableCleaner[] | null;
 
       if (cleanersError) {
         console.error("Failed to fetch available cleaners for auto-assignment", cleanersError);
@@ -181,8 +187,8 @@ export async function POST(req: NextRequest) {
     );
 
     const { error: dbError } = await supabase
-      .from<BookingRecord>("bookings")
-      .insert(bookingRecord);
+      .from("bookings")
+      .insert(bookingRecord as BookingRecord);
 
     if (dbError) {
       console.error("Failed to insert booking", dbError);

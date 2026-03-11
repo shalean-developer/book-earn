@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -17,7 +17,7 @@ interface VerifyResult {
   error?: string;
 }
 
-export default function VerifyBookingPage() {
+function VerifyBookingPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -156,6 +156,26 @@ export default function VerifyBookingPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function VerifyBookingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-slate-200 p-6 sm:p-8 flex flex-col items-center text-center space-y-4">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <div>
+          <p className="text-sm font-semibold text-slate-900">
+            Verifying your payment
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Please wait a moment while we confirm your booking.
+          </p>
+        </div>
+      </div>
+    </div>}>
+      <VerifyBookingPageInner />
+    </Suspense>
   );
 }
 

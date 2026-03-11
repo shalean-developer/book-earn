@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest) {
     const supabase = await createClient();
 
     const { data, error } = await supabase
-      .from<ProfileRow>("profiles")
+      .from("profiles")
       .select(
         "id, role, name, email, phone, avatar, verification_status, working_areas, unavailable_dates"
       )

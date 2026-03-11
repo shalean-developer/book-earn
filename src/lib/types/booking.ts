@@ -37,6 +37,7 @@ export interface BookingRecord {
   bedrooms: number;
   bathrooms: number;
   extra_rooms: number;
+  apartment_unit?: string;
   property_type: string;
   office_size: string;
   private_offices: number;
