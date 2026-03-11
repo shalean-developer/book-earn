@@ -115,10 +115,46 @@ interface BookingFormData {
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 
-const PROMO_CODES: Record<string, number> = {
-  SHALEAN10: 0.1,
-  SAVE20: 0.2,
-  FIRSTCLEAN: 100,
+type ServiceMultipliers = {
+  bedroomAddPer?: number | null;
+  bathroomAddPer?: number | null;
+  extraRoomAddPer?: number | null;
+  officePrivateAddPer?: number | null;
+  officeMeetingAddPer?: number | null;
+  officeScaleSmall?: number | null;
+  officeScaleMedium?: number | null;
+  officeScaleLarge?: number | null;
+  officeScaleXlarge?: number | null;
+  carpetRoomPer?: number | null;
+  looseRugPer?: number | null;
+  carpetExtraCleanerPer?: number | null;
+  /**
+   * Optional recurring frequency discounts and per-booking fees,
+   * mirrored from ServicePricingConfig so the client-side estimate
+   * matches the server-side computation.
+   */
+  weeklyDiscount?: number | null;
+  multiWeekDiscount?: number | null;
+  serviceFee?: number | null;
+  equipmentCharge?: number | null;
+};
+
+type ServicePricingState = {
+  /**
+   * Optional base price override per service, sourced from Supabase
+   * `pricing_config` when available.
+   */
+  baseByService: Partial<Record<ServiceType, number>>;
+  /**
+   * Optional extra price overrides per service and extra id, sourced
+   * from Supabase `pricing_config` when available.
+   */
+  extrasByService: Partial<Record<ServiceType, Record<string, number>>>;
+  /**
+   * Optional per-unit multipliers per service, mirroring
+   * the fields from ServicePricingConfig.
+   */
+  multipliersByService: Partial<Record<ServiceType, ServiceMultipliers>>;
 };
 
 const SERVICES = [
@@ -126,7 +162,7 @@ const SERVICES = [
     id: "standard" as ServiceType,
     title: "Standard Cleaning",
     description: "Essential upkeep for your home.",
-    price: 450,
+    price: 250,
     icon: <Sparkles className="w-6 h-6" />,
     color: "blue",
   },
@@ -134,7 +170,7 @@ const SERVICES = [
     id: "deep" as ServiceType,
     title: "Deep Cleaning",
     description: "Intensive top-to-bottom clean.",
-    price: 850,
+    price: 1200,
     icon: <Layers className="w-6 h-6" />,
     color: "indigo",
   },
@@ -142,7 +178,7 @@ const SERVICES = [
     id: "move" as ServiceType,
     title: "Moving Cleaning",
     description: "Perfect for moving days.",
-    price: 1200,
+    price: 980,
     icon: <Truck className="w-6 h-6" />,
     color: "violet",
   },
@@ -150,7 +186,7 @@ const SERVICES = [
     id: "airbnb" as ServiceType,
     title: "Airbnb Cleaning",
     description: "Quick guest-ready refresh.",
-    price: 650,
+    price: 230,
     icon: <Calendar className="w-6 h-6" />,
     color: "sky",
   },
@@ -158,7 +194,7 @@ const SERVICES = [
     id: "carpet" as ServiceType,
     title: "Carpet Cleaning",
     description: "Deep fibre carpet clean.",
-    price: 350,
+    price: 150,
     icon: <LayoutGrid className="w-6 h-6" />,
     color: "teal",
   },
@@ -168,33 +204,33 @@ const STANDARD_EXTRAS: Extra[] = [
   {
     id: "fridge",
     label: "Inside Fridge",
-    price: 150,
+    price: 30,
     icon: <Refrigerator className="w-5 h-5" />,
     recommended: true,
   },
   {
     id: "oven",
     label: "Inside Oven",
-    price: 150,
+    price: 30,
     icon: <Microwave className="w-5 h-5" />,
     recommended: true,
   },
   {
     id: "windows",
     label: "Interior Windows",
-    price: 200,
+    price: 40,
     icon: <AppWindow className="w-5 h-5" />,
   },
   {
     id: "cabinets",
     label: "Inside Cabinets",
-    price: 180,
+    price: 30,
     icon: <Archive className="w-5 h-5" />,
   },
   {
     id: "walls",
     label: "Wall Spot Cleaning",
-    price: 120,
+    price: 35,
     icon: <BrickWall className="w-5 h-5" />,
   },
   {
@@ -258,6 +294,15 @@ const DEEP_MOVE_EXTRAS: Extra[] = [
     icon: <Maximize2 className="w-5 h-5" />,
   },
 ];
+
+const QUANTITY_ENABLED_EXTRAS = new Set([
+  "carpet_deep",
+  "ceiling",
+  "couch",
+  "garage",
+  "mattress",
+  "outside_windows",
+]);
 
 const getExtrasForService = (service: ServiceType): Extra[] => {
   if (service === "deep" || service === "move") {
@@ -436,7 +481,7 @@ function getDatesForMonth(): string[] {
   const today = new Date();
   const dates: string[] = [];
 
-  for (let i = 1; i <= DAYS_AHEAD; i++) {
+  for (let i = 0; i <= DAYS_AHEAD; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     dates.push(d.toISOString().split("T")[0]);
@@ -492,7 +537,19 @@ function formatDate(dateStr: string): string {
 }
 
 function useCalcTotal(
-  data: BookingFormData
+  data: BookingFormData,
+  overrides: {
+    basePriceOverride?: number | null;
+    extrasOverride?: Record<string, number> | null;
+    multipliersOverride?: ServiceMultipliers | null;
+    /**
+     * Indicates that we have successfully loaded pricing configuration
+     * for the current service from the backend. When false, we treat
+     * all numeric values as zero so the UI shows a neutral estimate
+     * and the payment step can be blocked until real pricing arrives.
+     */
+    pricingReady: boolean;
+  }
 ): {
   basePrice: number;
   bedroomAdd: number;
@@ -511,8 +568,15 @@ function useCalcTotal(
   total: number;
 } {
   return useMemo(() => {
-    const svc = SERVICES.find((s) => s.id === data.service);
-    const basePrice = svc?.price ?? 0;
+    const pricingReady = overrides.pricingReady;
+
+    const serviceMeta = SERVICES.find((s) => s.id === data.service);
+    const basePrice = pricingReady
+      ? overrides.basePriceOverride ?? (serviceMeta?.price ?? 0)
+      : serviceMeta?.price ?? 0;
+
+    const multipliers = overrides.multipliersOverride ?? {};
+
     let bedroomAdd = 0;
     let bathroomAdd = 0;
     let extraRoomsAdd = 0;
@@ -524,32 +588,58 @@ function useCalcTotal(
     let carpetExtraCleanerAdd = 0;
 
     if (data.service === "carpet") {
-      carpetRoomsAdd = data.carpetedRooms * 120;
-      looseRugsAdd = data.looseRugs * 80;
-      carpetExtraCleanerAdd = data.carpetExtraCleaners * 300;
+      const carpetPer = multipliers.carpetRoomPer ?? 0;
+      const rugPer = multipliers.looseRugPer ?? 0;
+      const extraCleanerPer = multipliers.carpetExtraCleanerPer ?? 0;
+
+      carpetRoomsAdd = data.carpetedRooms * carpetPer;
+      looseRugsAdd = data.looseRugs * rugPer;
+      carpetExtraCleanerAdd = data.carpetExtraCleaners * extraCleanerPer;
     } else {
-      bedroomAdd = (data.bedrooms - 1) * 100;
-      bathroomAdd = (data.bathrooms - 1) * 50;
-      extraRoomsAdd = data.extraRooms * 80;
+      const bedroomPer = multipliers.bedroomAddPer ?? 0;
+      const bathroomPer = multipliers.bathroomAddPer ?? 0;
+      const extraRoomPer = multipliers.extraRoomAddPer ?? 0;
+
+      bedroomAdd = Math.max(0, data.bedrooms - 1) * bedroomPer;
+      bathroomAdd = Math.max(0, data.bathrooms - 1) * bathroomPer;
+      extraRoomsAdd = Math.max(0, data.extraRooms) * extraRoomPer;
       if (data.propertyType === "office") {
-        officePrivateAdd = data.privateOffices * 120;
-        officeMeetingAdd = data.meetingRooms * 100;
-        if (data.officeSize === "small") officeScaleAdd = 0;
-        if (data.officeSize === "medium") officeScaleAdd = 250;
-        if (data.officeSize === "large") officeScaleAdd = 500;
-        if (data.officeSize === "xlarge") officeScaleAdd = 900;
+        const privatePer = multipliers.officePrivateAddPer ?? 0;
+        const meetingPer = multipliers.officeMeetingAddPer ?? 0;
+
+        officePrivateAdd = Math.max(0, data.privateOffices) * privatePer;
+        officeMeetingAdd = Math.max(0, data.meetingRooms) * meetingPer;
+
+        if (data.officeSize === "small") {
+          officeScaleAdd = multipliers.officeScaleSmall ?? 0;
+        } else if (data.officeSize === "medium") {
+          officeScaleAdd = multipliers.officeScaleMedium ?? 0;
+        } else if (data.officeSize === "large") {
+          officeScaleAdd = multipliers.officeScaleLarge ?? 0;
+        } else if (data.officeSize === "xlarge") {
+          officeScaleAdd = multipliers.officeScaleXlarge ?? 0;
+        }
       }
     }
 
-    const availableExtras = getExtrasForService(data.service);
+    const extrasForService = getExtrasForService(data.service);
+    const extrasPriceMap: Record<string, number> = {};
+    for (const extra of extrasForService) {
+      const overridePrice = overrides.extrasOverride?.[extra.id];
+      extrasPriceMap[extra.id] =
+        overridePrice != null ? overridePrice : extra.price;
+    }
 
     const extrasTotal = data.extras.reduce((sum, id) => {
-      const e = availableExtras.find((ex) => ex.id === id);
-      return sum + (e?.price ?? 0);
+      const price = extrasPriceMap[id] ?? 0;
+      return sum + price;
     }, 0);
 
     const tipAmount = data.tipAmount;
-    const subtotal =
+    const serviceFee = multipliers.serviceFee ?? 0;
+    const equipmentCharge = multipliers.equipmentCharge ?? 0;
+
+    const subtotalBeforeDiscount =
       basePrice +
       bedroomAdd +
       bathroomAdd +
@@ -560,19 +650,26 @@ function useCalcTotal(
       carpetRoomsAdd +
       looseRugsAdd +
       carpetExtraCleanerAdd +
-      extrasTotal;
+      extrasTotal +
+      serviceFee +
+      equipmentCharge;
 
     let discountAmount = 0;
-    if (data.promoCode) {
-      const discount = PROMO_CODES[data.promoCode.toUpperCase()];
-      if (discount) {
-        if (discount <= 1) {
-          discountAmount = Math.round(subtotal * discount);
-        } else {
-          discountAmount = Math.min(subtotal, discount);
-        }
-      }
+    const cleaningFrequency = data.cleaningFrequency.toLowerCase();
+    if (cleaningFrequency === "weekly" && multipliers.weeklyDiscount != null) {
+      discountAmount = Math.round(
+        subtotalBeforeDiscount * multipliers.weeklyDiscount
+      );
+    } else if (
+      cleaningFrequency === "multi_week" &&
+      multipliers.multiWeekDiscount != null
+    ) {
+      discountAmount = Math.round(
+        subtotalBeforeDiscount * multipliers.multiWeekDiscount
+      );
     }
+
+    const subtotal = subtotalBeforeDiscount;
 
     return {
       basePrice,
@@ -591,7 +688,7 @@ function useCalcTotal(
       subtotal,
       total: Math.max(0, subtotal - discountAmount) + tipAmount,
     };
-  }, [data]);
+  }, [data, overrides]);
 }
 
 // ─── SHARED UI COMPONENTS ──────────────────────────────────────────────────────
@@ -776,11 +873,38 @@ const Step1Plan = ({
   data,
   setData,
   errors = {},
+  pricingState,
 }: {
   data: BookingFormData;
   setData: React.Dispatch<React.SetStateAction<BookingFormData>>;
   errors?: Partial<Record<keyof BookingFormData, string>>;
+  pricingState: ServicePricingState;
 }) => {
+  const [quantityModalExtra, setQuantityModalExtra] = useState<Extra | null>(
+    null
+  );
+  const [quantityModalValue, setQuantityModalValue] = useState<number>(1);
+
+  const setExtraQuantity = useCallback(
+    (id: string, quantity: number) => {
+      const clamped = Math.max(0, Math.min(20, quantity));
+      setData((prev) => {
+        const withoutId = prev.extras.filter((e) => e !== id);
+        if (clamped <= 0) {
+          return {
+            ...prev,
+            extras: withoutId,
+          };
+        }
+        return {
+          ...prev,
+          extras: [...withoutId, ...Array(clamped).fill(id)],
+        };
+      });
+    },
+    [setData]
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -792,17 +916,33 @@ const Step1Plan = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {SERVICES.map((s) => {
             const selected = data.service === s.id;
+            const overrideBase = pricingState.baseByService[s.id];
+            const displayPrice =
+              overrideBase != null ? overrideBase : s.price;
             return (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => {
-                  setData((prev) => ({
-                    ...prev,
-                    service: s.id,
-                    cleanerId: "",
-                    teamId: "",
-                  }));
+                  setData((prev) => {
+                    const isHomeService =
+                      prev.propertyType !== "office" && s.id !== "carpet";
+                    const isServiceChange = prev.service !== s.id;
+
+                    return {
+                      ...prev,
+                      service: s.id,
+                      cleanerId: "",
+                      teamId: "",
+                      ...(isHomeService && isServiceChange
+                        ? {
+                            bedrooms: 2,
+                            bathrooms: 1,
+                            extraRooms: 0,
+                          }
+                        : {}),
+                    };
+                  });
                 }}
                 className={`w-full min-h-[120px] rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition-all flex flex-col gap-2 ${
                   selected
@@ -822,7 +962,7 @@ const Step1Plan = ({
                   {s.description}
                 </p>
                 <p className="text-xs font-bold text-blue-600">
-                  From R{s.price}
+                  From R{displayPrice}
                 </p>
               </button>
             );
@@ -836,10 +976,18 @@ const Step1Plan = ({
           {/* Property type + location aligned horizontally */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <FieldLabel required>Property Type</FieldLabel>
-              <p className="text-[10px] text-slate-500 mb-1.5 ml-1">
-                Home, apartment, or office—we tailor the clean to your space.
-              </p>
+              <div className="flex items-center gap-1.5">
+                <FieldLabel required>Property Type</FieldLabel>
+                <span
+                  className="relative group inline-flex items-center"
+                  aria-label="Property type info"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 cursor-pointer" />
+                  <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                    Home, apartment, or office—we tailor the clean to your space.
+                  </span>
+                </span>
+              </div>
               <div className="flex flex-row gap-2 rounded-2xl bg-slate-50 p-1">
                 {[
                   { id: "apartment", label: "Apartment", icon: <Building className="w-5 h-5" /> },
@@ -874,10 +1022,18 @@ const Step1Plan = ({
             </div>
 
             <div>
-              <FieldLabel required>Your location</FieldLabel>
-              <p className="text-[10px] text-slate-500 mb-1.5 ml-1">
-                We use this to match you with cleaners in your area.
-              </p>
+              <div className="flex items-center gap-1.5">
+                <FieldLabel required>Your location</FieldLabel>
+                <span
+                  className="relative group inline-flex items-center"
+                  aria-label="Location info"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 cursor-pointer" />
+                  <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                    We use this to match you with cleaners in your area.
+                  </span>
+                </span>
+              </div>
               <div className="relative">
                 <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                   <Home className="w-4 h-4" />
@@ -914,11 +1070,19 @@ const Step1Plan = ({
           {/* Office configuration & scale (only for office properties) */}
           {data.propertyType === "office" && (
             <div className="space-y-4">
-              <p className="text-[11px] text-slate-500 -mt-1 ml-1">
-                Pricing for offices is estimated; final quote may vary based on size and configuration.
-              </p>
               <div>
-                <FieldLabel>Office Configuration</FieldLabel>
+                <div className="flex items-center gap-1.5 -mt-1 ml-1 mb-1">
+                  <FieldLabel>Office Configuration</FieldLabel>
+                  <span
+                    className="relative group inline-flex items-center"
+                    aria-label="Office pricing info"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 cursor-pointer" />
+                    <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                      Pricing for offices is estimated; final quote may vary based on size and configuration.
+                    </span>
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -1142,18 +1306,30 @@ const Step1Plan = ({
         <SectionHeader>3. Optional add-ons</SectionHeader>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
           {getExtrasForService(data.service).map((extra) => {
-            const selected = data.extras.includes(extra.id);
+            const isQuantityEnabled = QUANTITY_ENABLED_EXTRAS.has(extra.id);
+            const quantity = data.extras.filter((id) => id === extra.id).length;
+            const selected = quantity > 0;
+            const overridesForExtras =
+              pricingState.extrasByService[data.service] ?? {};
+            const displayExtraPrice =
+              overridesForExtras[extra.id] ?? extra.price;
             return (
               <div
                 key={extra.id}
-                onClick={() =>
-                  setData((prev) => ({
-                    ...prev,
-                    extras: prev.extras.includes(extra.id)
-                      ? prev.extras.filter((e) => e !== extra.id)
-                      : [...prev.extras, extra.id],
-                  }))
-                }
+                onClick={() => {
+                  if (isQuantityEnabled) {
+                    const currentQty = Math.max(1, quantity || 1);
+                    setQuantityModalExtra(extra);
+                    setQuantityModalValue(currentQty);
+                  } else {
+                    setData((prev) => ({
+                      ...prev,
+                      extras: prev.extras.includes(extra.id)
+                        ? prev.extras.filter((e) => e !== extra.id)
+                        : [...prev.extras, extra.id],
+                    }));
+                  }
+                }}
                 className={`group relative flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
                   selected
                     ? "text-blue-700"
@@ -1178,13 +1354,86 @@ const Step1Plan = ({
                   {extra.label}
                 </p>
                 <p className="text-[10px] font-bold text-blue-600">
-                  +R{extra.price}
+                  +R{displayExtraPrice}
                 </p>
               </div>
             );
           })}
         </div>
       </div>
+      {quantityModalExtra && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
+          <div
+            className="absolute inset-0"
+            onClick={() => setQuantityModalExtra(null)}
+          />
+          <div className="relative z-50 w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {quantityModalExtra.label}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Choose how many you need for this extra.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setQuantityModalValue((prev) => Math.max(0, prev - 1))
+                }
+                className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <span className="text-base font-black text-slate-900 w-8 text-center">
+                {quantityModalValue}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setQuantityModalValue((prev) => Math.min(20, prev + 1))
+                }
+                className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500">
+              <span>Price per unit: R{quantityModalExtra.price}</span>
+              <span className="font-semibold text-slate-700">
+                Total: R{quantityModalExtra.price * Math.max(0, quantityModalValue)}
+              </span>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setQuantityModalExtra(null)}
+                className="px-3 py-1.5 rounded-full text-[11px] font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (quantityModalExtra) {
+                    setExtraQuantity(
+                      quantityModalExtra.id,
+                      quantityModalValue
+                    );
+                  }
+                  setQuantityModalExtra(null);
+                }}
+                className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1226,6 +1475,24 @@ function Step2Schedule({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (!availableDates.length) return;
+
+    setData((prev) => {
+      const next = { ...prev };
+
+      if (!next.date || !availableDates.includes(next.date)) {
+        next.date = availableDates[0];
+      }
+
+      if (!next.time) {
+        next.time = "08:00";
+      }
+
+      return next;
+    });
+  }, [availableDates, setData]);
 
   const toggleExtra = (id: string) => {
     setData((prev) => ({
@@ -1843,21 +2110,16 @@ const Step4Payment = ({
       setPromoMsg(null);
       return;
     }
-    if (PROMO_CODES[code]) {
-      setData((prev) => ({
-        ...prev,
-        promoCode: code,
-      }));
-      setPromoMsg({
-        text: "Promo code applied successfully!",
-        type: "success",
-      });
-    } else {
-      setPromoMsg({
-        text: "This promo code is not recognized or may have expired.",
-        type: "error",
-      });
-    }
+    // Promo codes are now validated and priced on the server.
+    // We just persist the code so the backend can apply it.
+    setData((prev) => ({
+      ...prev,
+      promoCode: code,
+    }));
+    setPromoMsg({
+      text: "We’ll apply this promo code when we confirm your pricing.",
+      type: "success",
+    });
   };
 
   return (
@@ -2328,8 +2590,19 @@ export const BookingSystem = ({
   const [bookingRef, setBookingRef] = useState("");
   const [redirectedFromDeepLink, setRedirectedFromDeepLink] = useState(false);
   const [cleaners, setCleaners] = useState<Cleaner[]>(INDIVIDUAL_CLEANERS);
+  const [pricingState, setPricingState] = useState<ServicePricingState>({
+    baseByService: {},
+    extrasByService: {},
+    multipliersByService: {},
+  });
+  const [pricingReady, setPricingReady] = useState(false);
 
-  const pricing = useCalcTotal(data);
+  const pricing = useCalcTotal(data, {
+    basePriceOverride: pricingState.baseByService[data.service] ?? null,
+    extrasOverride: pricingState.extrasByService[data.service] ?? null,
+    multipliersOverride: pricingState.multipliersByService[data.service] ?? null,
+    pricingReady,
+  });
 
   useEffect(() => {
     if (onStepChange) {
@@ -2340,10 +2613,7 @@ export const BookingSystem = ({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const { pathname, search } = window.location;
-
     const storedDataRaw = window.localStorage.getItem("bookingFormData");
-    const storedStepRaw = window.localStorage.getItem("bookingStep");
 
     let initialData = DEFAULT_FORM;
     if (storedDataRaw) {
@@ -2355,33 +2625,20 @@ export const BookingSystem = ({
       }
     }
 
-    let desiredStep = 1;
-    if (pathname.startsWith("/booking")) {
-      const parts = pathname.split("/").filter(Boolean);
-      const slug = (parts[1] as StepSlug | undefined) ?? STEP_SLUGS[0];
-      const index = STEP_SLUGS.indexOf(slug);
-      if (index >= 0) {
-        desiredStep = index + 1;
-      }
-    } else if (storedStepRaw) {
-      const parsedStep = Number(storedStepRaw);
-      if (Number.isFinite(parsedStep) && parsedStep >= 1 && parsedStep <= 5) {
-        desiredStep = parsedStep;
-      }
+    // Ensure a sensible default schedule on first load:
+    // current date and the 08:00 time slot.
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (!initialData.date) {
+      initialData = { ...initialData, date: todayStr };
+    }
+    if (!initialData.time) {
+      initialData = { ...initialData, time: "08:00" };
     }
 
     setData(initialData);
+    setStep(1);
 
-    const hasStep1Requirements = !!initialData.workingArea;
-    if (desiredStep > 1 && !hasStep1Requirements) {
-      setStep(1);
-      setRedirectedFromDeepLink(true);
-      const path = `/booking/${STEP_SLUGS[0]}`;
-      window.history.replaceState(null, "", path + window.location.search);
-    } else {
-      setStep(desiredStep);
-    }
-
+    const { search } = window.location;
     if (search) {
       const params = new URLSearchParams(search);
       const serviceSlug = params.get("service");
@@ -2398,6 +2655,57 @@ export const BookingSystem = ({
     // run only once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const controller = new AbortController();
+
+    const loadPricingConfig = async () => {
+      try {
+        setPricingReady(false);
+        const res = await fetch(
+          `/api/pricing/config?service_type=${encodeURIComponent(
+            data.service
+          )}`,
+          { signal: controller.signal }
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          serviceType: ServiceType;
+          basePrice: number | null;
+          extras: Record<string, number>;
+          multipliers?: ServiceMultipliers;
+        };
+        setPricingState((prev) => ({
+          baseByService: {
+            ...prev.baseByService,
+            [json.serviceType]:
+              json.basePrice != null
+                ? json.basePrice
+                : prev.baseByService[json.serviceType],
+          },
+          extrasByService: {
+            ...prev.extrasByService,
+            [json.serviceType]: json.extras ?? {},
+          },
+          multipliersByService: {
+            ...prev.multipliersByService,
+            [json.serviceType]: json.multipliers ?? prev.multipliersByService[json.serviceType],
+          },
+        }));
+        setPricingReady(true);
+      } catch {
+        // If pricing fails to load, keep pricingReady as false so the UI
+        // and payment button can reflect that live pricing is unavailable.
+      }
+    };
+
+    loadPricingConfig();
+
+    return () => {
+      controller.abort();
+    };
+  }, [data.service]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2533,6 +2841,12 @@ export const BookingSystem = ({
 
   const handlePaystackPay = useCallback(async () => {
     if (typeof window === "undefined") return;
+    if (!pricingReady) {
+      setPaymentError(
+        "Live pricing is still loading. Please wait a moment and try again."
+      );
+      return;
+    }
     setIsProcessing(true);
     setPaymentError("");
     try {
@@ -2559,6 +2873,12 @@ export const BookingSystem = ({
       const json = (await res.json()) as {
         authorizationUrl: string;
         reference: string;
+        pricing?: {
+          total: number;
+          subtotal: number;
+          discountAmount: number;
+          tipAmount: number;
+        };
       };
 
       if (!json.authorizationUrl || !json.reference) {
@@ -2569,17 +2889,26 @@ export const BookingSystem = ({
       }
 
       setBookingRef(json.reference);
+      if (json.pricing) {
+        // Mirror server-computed pricing into local state so any
+        // subsequent displays (e.g. confirmation) reflect the exact
+        // amount used for payment.
+        setData((prev) => ({
+          ...prev,
+          tipAmount: json.pricing?.tipAmount ?? prev.tipAmount,
+        }));
+      }
       window.location.href = json.authorizationUrl;
     } catch {
       setPaymentError("Payment initialization failed. Please check your connection and try again.");
     } finally {
       setIsProcessing(false);
     }
-  }, [data, pricing]);
+  }, [data, pricing, pricingReady]);
 
   return (
-    <div className="w-full py-10 font-sans">
-      <main className="max-w-7xl mx-auto px-6 w-full pb-24">
+    <div className="w-full pt-4 pb-6 font-sans">
+      <main className="max-w-7xl mx-auto px-6 w-full pb-10">
         <div aria-live="polite" className="sr-only">
           {`Step ${step}: ${STEP_LABELS[step - 1]}`}
         </div>
@@ -2610,7 +2939,14 @@ export const BookingSystem = ({
                     duration: 0.2,
                   }}
                 >
-                  {step === 1 && <Step1Plan data={data} setData={setData} errors={errors} />}
+                  {step === 1 && (
+                    <Step1Plan
+                      data={data}
+                      setData={setData}
+                      errors={errors}
+                      pricingState={pricingState}
+                    />
+                  )}
                   {step === 2 && <Step2Schedule data={data} setData={setData} />}
                   {step === 3 && (
                     <Step3Details
@@ -2693,6 +3029,16 @@ export const BookingSystem = ({
                     {SERVICES.find((s) => s.id === data.service)?.title}
                   </span>
                 </div>
+                {data.service !== "carpet" && data.propertyType !== "office" && (
+                  <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
+                    <span className="opacity-50">Home details</span>
+                    <span className="font-bold text-right">
+                      {data.bedrooms} bedroom{data.bedrooms !== 1 ? "s" : ""} ·{" "}
+                      {data.bathrooms} bathroom{data.bathrooms !== 1 ? "s" : ""} ·{" "}
+                      {data.extraRooms} extra room{data.extraRooms !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
                   <span className="opacity-50">Frequency</span>
                   <span className="font-bold text-right">
@@ -2748,21 +3094,20 @@ export const BookingSystem = ({
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                  <span className="opacity-50">Professional</span>
-                  <span className="font-bold">
-                    {data.cleanerId
-                      ? data.cleanerId === "any"
-                        ? "Any available cleaner"
-                        : cleaners.find((c) => c.id === data.cleanerId)
-                            ?.name
-                      : data.teamId
-                      ? data.teamId === "any"
+                {(data.cleanerId || data.teamId) && (
+                  <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
+                    <span className="opacity-50">Professional</span>
+                    <span className="font-bold">
+                      {data.cleanerId
+                        ? data.cleanerId === "any"
+                          ? "Any available cleaner"
+                          : cleaners.find((c) => c.id === data.cleanerId)?.name
+                        : data.teamId === "any"
                         ? "Any available team"
-                        : TEAMS.find((t) => t.id === data.teamId)?.name
-                      : "TBD"}
-                  </span>
-                </div>
+                        : TEAMS.find((t) => t.id === data.teamId)?.name}
+                    </span>
+                  </div>
+                )}
 
                 <div className="pt-2 space-y-2">
                   <div className="flex justify-between text-[11px]">

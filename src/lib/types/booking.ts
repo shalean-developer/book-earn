@@ -12,6 +12,9 @@ export interface PricingBreakdown {
   extrasTotal: number;
   tipAmount: number;
   discountAmount: number;
+   /** Per-booking fees pulled from pricing_config, if configured. */
+  serviceFee: number;
+  equipmentCharge: number;
   subtotal: number;
   total: number;
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import type { BookingRecord, PricingBreakdown } from "@/lib/types/booking";
+import { computePricingForBooking } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 
@@ -97,11 +98,9 @@ function mapToBookingRecord(
 }
 
 function generateReference() {
-  // Always generate a short, user-friendly reference that
-  // fits comfortably into legacy varchar(20) columns.
-  return (
-    "SHL-" + Math.random().toString(36).substring(2, 10).toUpperCase()
-  );
+  // Generate a reference in the format SC######## (e.g. SC34429287)
+  const random = Math.floor(10000000 + Math.random() * 90000000); // 8 digits
+  return `SC${random}`;
 }
 
 type AvailableCleaner = {
@@ -115,11 +114,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const booking = body.booking as BookingFormPayload | undefined;
-    const pricing = body.pricing as PricingBreakdown | undefined;
+    const clientPricing = body.pricing as PricingBreakdown | undefined;
 
-    if (!booking || !pricing) {
+    if (!booking) {
       return NextResponse.json(
-        { error: "Missing booking or pricing data" },
+        { error: "Missing booking data" },
         { status: 400 }
       );
     }
@@ -178,6 +177,24 @@ export async function POST(req: NextRequest) {
         booking.cleanerId = null as unknown as string;
       }
     }
+
+    const pricing = await computePricingForBooking({
+      service: booking.service,
+      bedrooms: booking.bedrooms,
+      bathrooms: booking.bathrooms,
+      extraRooms: booking.extraRooms,
+      propertyType: booking.propertyType,
+      officeSize: booking.officeSize,
+      privateOffices: booking.privateOffices,
+      meetingRooms: booking.meetingRooms,
+      carpetedRooms: booking.carpetedRooms,
+      looseRugs: booking.looseRugs,
+      carpetExtraCleaners: booking.carpetExtraCleaners,
+      extras: booking.extras,
+      tipAmount: (clientPricing && clientPricing.tipAmount) ?? 0,
+      promoCode: booking.promoCode,
+      cleaningFrequency: booking.cleaningFrequency,
+    });
 
     const bookingRecord = mapToBookingRecord(
       booking,
@@ -250,6 +267,7 @@ export async function POST(req: NextRequest) {
       {
         authorizationUrl: authorizationUrl as string,
         reference,
+        pricing,
       },
       { status: 200 }
     );

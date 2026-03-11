@@ -124,6 +124,8 @@ export async function POST(req: NextRequest) {
       extrasTotal: updatedBooking.extras?.length ? updatedBooking.extras.length : 0,
       tipAmount: updatedBooking.tip_amount,
       discountAmount: updatedBooking.discount_amount,
+      serviceFee: updatedBooking.service_fee_amount ?? 0,
+      equipmentCharge: updatedBooking.equipment_charge_amount ?? 0,
       subtotal: updatedBooking.subtotal_amount,
       total: updatedBooking.total_amount,
     };
