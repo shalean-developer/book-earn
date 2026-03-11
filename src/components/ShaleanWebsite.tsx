@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import {
   ChevronRight,
@@ -196,7 +198,7 @@ const LocalSEOSection = ({
   return (
     <section className="bg-slate-100 pt-2 pb-10">
       <div className="max-w-7xl mx-auto px-6 w-full">
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 md:p-12">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 md:p-12">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div>
               <div className="flex items-center gap-2 text-slate-500 bg-slate-100 w-fit px-3 py-1.5 rounded-full text-sm font-medium mb-4">
@@ -396,10 +398,10 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
             <div className="relative z-10 flex flex-col lg:flex-row lg:items-stretch min-h-[420px] lg:min-h-[500px]">
               {/* Left — white text over dark overlay */}
               <div className="flex flex-col justify-center p-8 md:p-10 lg:p-12 lg:max-w-[55%] order-2 lg:order-1">
-                <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-4">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
                   Custom home cleaning services
                 </h1>
-                <p className="text-base md:text-lg text-white/95 leading-relaxed max-w-xl mb-6">
+                <p className="text-base md:text-lg text-white/95 leading-relaxed max-w-xl mb-8">
                   Enjoy a spotless space with our trusted cleaning professionals. Eco-friendly, flexible, and always on time.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
@@ -496,7 +498,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               <Sparkles className="w-4 h-4 text-slate-500" />
               Service
             </span>
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 mt-6 mb-4 leading-tight">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-6 mb-5 leading-tight">
               Complete Home and Office Cleaning You Can Trust
             </h2>
             <p className="text-base md:text-lg text-slate-600 leading-relaxed max-w-3xl">
@@ -548,7 +550,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
                   aria-hidden
                 />
                 <div className="absolute inset-0 flex flex-col justify-end p-6 text-left">
-                  <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
+                  <h3 className="text-lg md:text-2xl font-bold text-white mb-2">
                     {card.title}
                   </h3>
                   <p className="text-sm text-white/95 leading-relaxed mb-4 max-w-md">
@@ -575,7 +577,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               <Sparkles className="w-4 h-4" />
               How It Work
             </span>
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mt-4 mb-3 leading-tight">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-5 leading-tight">
               Simple Steps to a Cleaner Home
             </h2>
             <p className="text-base md:text-lg text-white/90 leading-relaxed max-w-2xl mb-8 md:mb-10">
@@ -609,7 +611,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
                     {item.step}
                   </span>
                   <div>
-                    <h3 className="text-lg md:text-xl font-bold text-white mb-1.5 md:mb-2">
+                    <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
                       {item.title}
                     </h3>
                     <p className="text-sm text-white/90 leading-relaxed">
@@ -631,7 +633,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               <FileText className="w-4 h-4" />
               <span>Testimonial</span>
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-5">
               Over 500 Positive Reviews
             </h2>
             <p className="text-slate-500 text-base md:text-lg mb-6 max-w-2xl">
@@ -769,14 +771,14 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
       {/* FAQ Section */}
       <section className="mt-8 lg:mt-8 bg-slate-100 pb-0">
         <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 md:p-12">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 md:p-12">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-6">
               <div>
                 <div className="flex items-center gap-2 text-slate-500 bg-slate-100 w-fit px-3 py-1.5 rounded-full text-sm font-medium mb-4">
                   <HelpCircle className="w-4 h-4" />
                   <span>Support & FAQs</span>
                 </div>
-                <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-5">
                   Common Questions
                 </h2>
                 <p className="text-slate-500 text-base md:text-lg max-w-2xl">
@@ -813,8 +815,19 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
 };
 
 // ─── BOOKING PAGE ─────────────────────────────────────────────────────────────
-const BookingPage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
-  return <BookingSystem onNavigateContact={() => onNavigate("contact")} />;
+const BookingPage = ({
+  onNavigate,
+  onStepChange,
+}: {
+  onNavigate: (page: PageType) => void;
+  onStepChange: (step: number) => void;
+}) => {
+  return (
+    <BookingSystem
+      onNavigateContact={() => onNavigate("contact")}
+      onStepChange={onStepChange}
+    />
+  );
 };
 
 // ─── NAVIGATION & LAYOUT ──────────────────────────────────────────────────────
@@ -822,11 +835,29 @@ export const ShaleanWebsite = () => {
   const [currentPage, setCurrentPage] = useState<PageType>("home");
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [bookingStep, setBookingStep] = useState(1);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const { pathname } = window.location;
+    if (pathname.startsWith("/booking")) {
+      setCurrentPage("booking");
+      const parts = pathname.split("/").filter(Boolean);
+      const slug = parts[1] ?? "";
+      const slugToStep: Record<string, number> = {
+        "your-cleaning-plan": 1,
+        schedule: 2,
+        details: 3,
+        payment: 4,
+      };
+      setBookingStep(slugToStep[slug] ?? 1);
+    }
   }, []);
 
   const navigate = (page: PageType) => {
@@ -850,19 +881,18 @@ export const ShaleanWebsite = () => {
     currentPage
   );
 
+  const isBookingConfirmed = currentPage === "booking" && bookingStep === 5;
+
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-100">
       {/* Navigation */}
+      {!isBookingConfirmed && (
       <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-4 pb-2">
-        <div
-          className={`w-full max-w-7xl px-6 transition-all duration-300 ${
-            isScrolled ? "scale-100" : "scale-100"
-          }`}
-        >
-          <div className="flex items-center justify-between rounded-full bg-black text-white px-6 py-2 shadow-lg">
+        <div className="w-full max-w-7xl px-6">
+          <div className="flex items-center justify-between rounded-full bg-black text-white px-6 py-2 shadow-lg gap-6">
             {/* Brand */}
             <button
-              className="flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-2 cursor-pointer flex-shrink-0"
               onClick={() => navigate("home")}
             >
               <span className="text-lg font-black tracking-[0.2em]">
@@ -870,29 +900,74 @@ export const ShaleanWebsite = () => {
               </span>
             </button>
 
-            {/* Desktop Nav Links */}
-            <div className="hidden lg:flex items-center gap-8 text-sm">
-              {["Home", "About", "Service", "Pricing", "Portal"].map(
-                (label) => (
-                  <button
-                    key={label}
-                    onClick={() => {
-                      if (label === "Home") navigate("home");
-                      if (label === "About") navigate("about");
-                      if (label === "Service") navigate("services");
-                      if (label === "Pricing") navigate("pricing");
-                      if (label === "Portal") navigate("customer");
-                    }}
-                    className="font-medium text-white/80 hover:text-white transition-colors"
-                  >
-                    {label}
-                  </button>
-                )
+            {/* Center: either nav links or booking stepper */}
+            <div className="flex-1 flex justify-center">
+              {currentPage === "booking" ? (
+                <div
+                  className="hidden md:flex items-center gap-3 max-w-md w-full"
+                  role="list"
+                  aria-label="Booking steps"
+                >
+                  {["Plan", "Schedule", "Details", "Payment"].map(
+                    (label, idx) => {
+                      const current = idx + 1 === bookingStep;
+                      const completed = idx + 1 < bookingStep;
+                      return (
+                        <React.Fragment key={label}>
+                          <div
+                            className="flex flex-col items-center gap-1 flex-1"
+                            role="listitem"
+                          >
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                                current
+                                  ? "bg-blue-600 text-white shadow-md"
+                                  : completed
+                                  ? "bg-emerald-500 text-white"
+                                  : "bg-slate-200 text-slate-500"
+                              }`}
+                              aria-current={current ? "step" : undefined}
+                              aria-label={label}
+                            >
+                              {idx + 1}
+                            </div>
+                            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">
+                              {label}
+                            </span>
+                          </div>
+                          {idx < 3 && (
+                            <div className="h-px flex-1 bg-slate-700/40 rounded-full" />
+                          )}
+                        </React.Fragment>
+                      );
+                    }
+                  )}
+                </div>
+              ) : (
+                <div className="hidden lg:flex items-center gap-8 text-sm">
+                  {["Home", "About", "Service", "Pricing", "Portal"].map(
+                    (label) => (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          if (label === "Home") navigate("home");
+                          if (label === "About") navigate("about");
+                          if (label === "Service") navigate("services");
+                          if (label === "Pricing") navigate("pricing");
+                          if (label === "Portal") navigate("customer");
+                        }}
+                        className="font-medium text-white/80 hover:text-white transition-colors"
+                      >
+                        {label}
+                      </button>
+                    )
+                  )}
+                </div>
               )}
             </div>
 
             {/* Contact CTA & Mobile Menu Button */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-shrink-0">
               <button
                 onClick={() => navigate("contact")}
                 className="hidden sm:inline-flex rounded-full bg-blue-600 hover:bg-blue-700 text-sm font-semibold px-5 py-2 text-white shadow-md transition-colors"
@@ -909,10 +984,11 @@ export const ShaleanWebsite = () => {
           </div>
         </div>
       </nav>
+      )}
 
       {/* Mobile Menu */}
       <AnimatePresence>
-        {mobileMenuOpen && (
+        {!isBookingConfirmed && mobileMenuOpen && (
           <motion.div
             initial={{ opacity: 0, x: "100%" }}
             animate={{ opacity: 1, x: 0 }}
@@ -964,9 +1040,11 @@ export const ShaleanWebsite = () => {
       </AnimatePresence>
 
       {/* Content Area */}
-      <main className={`flex-grow ${isDashboardPage ? "" : "pt-24"}`}>
+      <main className={`flex-grow ${isDashboardPage ? "" : "pt-28"}`}>
         {currentPage === "home" && <HomePage onNavigate={navigate} />}
-        {currentPage === "booking" && <BookingPage onNavigate={navigate} />}
+        {currentPage === "booking" && (
+          <BookingPage onNavigate={navigate} onStepChange={setBookingStep} />
+        )}
         {currentPage === "services" && <ServicesPage onNavigate={navigate} />}
         {currentPage === "pricing" && <PricingPage onNavigate={navigate} />}
         {currentPage === "locations" && <LocationsPage onNavigate={navigate} />}
@@ -989,10 +1067,25 @@ export const ShaleanWebsite = () => {
       </main>
 
       {/* Footer */}
-      {!isDashboardPage && (
-        <footer className="bg-slate-100 text-neutral-100 pt-0 pb-10 -mt-4">
-          <div className="max-w-7xl mx-auto w-full px-6">
-            <div className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-black/90 px-6 py-10 md:px-10 md:py-12">
+      {!isDashboardPage && !isBookingConfirmed && (
+        currentPage === "booking" ? (
+          <footer className="bg-black text-white h-20 flex items-center">
+            <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between text-xs sm:text-sm">
+              <span>©2026 Shalean. All rights reserved</span>
+              <div className="flex items-center gap-4">
+                <span className="cursor-pointer text-white/70 hover:text-white">
+                  Privacy Policy
+                </span>
+                <span className="cursor-pointer text-white/70 hover:text-white">
+                  Terms of Use
+                </span>
+              </div>
+            </div>
+          </footer>
+        ) : (
+          <footer className="bg-slate-100 text-neutral-100 pt-0 pb-10 -mt-4">
+            <div className="max-w-7xl mx-auto w-full px-6">
+              <div className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-black/90 px-6 py-10 md:px-10 md:py-12">
               {/* Big watermark text */}
               <div className="pointer-events-none absolute inset-x-0 bottom-[-10%] flex justify-center opacity-10">
                 <span className="font-semibold tracking-[0.2em] text-[60px] md:text-[96px] lg:text-[128px]">
@@ -1089,21 +1182,22 @@ export const ShaleanWebsite = () => {
                 </div>
               </div>
 
-              {/* Bottom bar */}
-              <div className="relative mt-10 flex flex-col gap-4 border-t border-neutral-800 pt-6 text-xs text-neutral-500 md:flex-row md:items-center md:justify-between">
-                <p>©2026 Shalean. All rights reserved</p>
-                <div className="flex items-center gap-6">
-                  <span className="cursor-pointer transition hover:text-neutral-200">
-                    Privacy Policy
-                  </span>
-                  <span className="cursor-pointer transition hover:text-neutral-200">
-                    Term of Use
-                  </span>
+                {/* Bottom bar */}
+                <div className="relative mt-10 flex flex-col gap-4 border-t border-neutral-800 pt-6 text-xs text-neutral-500 md:flex-row md:items-center md:justify-between">
+                  <p>©2026 Shalean. All rights reserved</p>
+                  <div className="flex items-center gap-6">
+                    <span className="cursor-pointer transition hover:text-neutral-200">
+                      Privacy Policy
+                    </span>
+                    <span className="cursor-pointer transition hover:text-neutral-200">
+                      Term of Use
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </footer>
+          </footer>
+        )
       )}
 
       {/* Floating Action Buttons */}

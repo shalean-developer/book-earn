@@ -44,7 +44,7 @@ export const AboutSection = ({ onNavigate }: AboutSectionProps) => {
           <Home className="w-4 h-4" />
           About Us
         </div>
-        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 leading-tight mb-6">
+        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 leading-tight mb-6">
           Bringing Freshness, Comfort, and Care to Every Home
         </h2>
         <p className="text-slate-600 text-base md:text-lg leading-relaxed mb-8">

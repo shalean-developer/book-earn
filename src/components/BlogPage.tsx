@@ -109,7 +109,7 @@ export const BlogPage = ({
                 <Sparkles className="w-4 h-4" />
                 Cleaning Guides &amp; Tips
               </span>
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-5">
                 Expert cleaning advice for a{" "}
                 <span className="text-blue-600">consistently spotless home</span>
               </h1>
@@ -210,7 +210,7 @@ export const BlogPage = ({
               <Sparkles className="w-4 h-4" />
               How It Work
             </span>
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mt-4 mb-3 leading-tight">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-5 leading-tight">
               Turn expert tips into an effortlessly clean home
             </h2>
             <p className="text-base md:text-lg text-white/90 leading-relaxed max-w-2xl mb-8 md:mb-10">
@@ -246,7 +246,7 @@ export const BlogPage = ({
                     {item.step}
                   </span>
                   <div>
-                    <h3 className="text-lg md:text-xl font-bold text-white mb-1.5 md:mb-2">
+                    <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
                       {item.title}
                     </h3>
                     <p className="text-sm text-white/90 leading-relaxed">
@@ -263,7 +263,7 @@ export const BlogPage = ({
         <section>
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
                 Latest Cleaning Guides
               </h2>
               <p className="text-slate-600 max-w-xl">
