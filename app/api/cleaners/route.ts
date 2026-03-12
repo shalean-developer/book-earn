@@ -34,6 +34,37 @@ export async function GET(_req: NextRequest) {
       );
     }
 
+    const cleanerIds = (data ?? [])
+      .filter((row) => row.verification_status === "verified")
+      .map((row) => row.id);
+
+    let ratingsByCleaner: Record<string, { total: number; count: number }> =
+      {};
+
+    if (cleanerIds.length > 0) {
+      const { data: ratingRows, error: ratingError } = await supabase
+        .from("booking_ratings")
+        .select("rating, rater_type, bookings(cleaner_id)")
+        .eq("rater_type", "customer");
+
+      if (ratingError) {
+        console.error("Failed to fetch cleaner ratings", ratingError);
+      } else {
+        (ratingRows as any[] | null | undefined)?.forEach((row) => {
+          const cleanerId = row.bookings?.cleaner_id as string | null | undefined;
+          if (!cleanerId) return;
+          if (!cleanerIds.includes(cleanerId)) return;
+
+          const rating = Number(row.rating ?? 0);
+          if (!ratingsByCleaner[cleanerId]) {
+            ratingsByCleaner[cleanerId] = { total: 0, count: 0 };
+          }
+          ratingsByCleaner[cleanerId].total += rating;
+          ratingsByCleaner[cleanerId].count += 1;
+        });
+      }
+    }
+
     const cleaners = (data ?? [])
       .filter((row) => row.verification_status === "verified")
       .map((row) => ({
@@ -41,8 +72,11 @@ export async function GET(_req: NextRequest) {
         name: row.name ?? "Unnamed cleaner",
         photo: row.avatar ?? "",
         experience: "",
-        rating: 0,
-        reviews: 0,
+        rating:
+          ratingsByCleaner[row.id]?.count && ratingsByCleaner[row.id].total
+            ? ratingsByCleaner[row.id].total / ratingsByCleaner[row.id].count
+            : 0,
+        reviews: ratingsByCleaner[row.id]?.count ?? 0,
         badge: undefined as string | undefined,
         workingAreas: row.working_areas ?? [],
         unavailableDates: row.unavailable_dates ?? [],

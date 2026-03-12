@@ -53,9 +53,8 @@ import { AboutSection } from "./AboutSection";
 import { CareersPage } from "./CareersPage";
 import { ContactPage } from "./ContactPage";
 import { BlogPage } from "./BlogPage";
-import { AdminDashboard } from "./AdminDashboard";
-import { CustomerDashboard } from "./CustomerDashboard";
-import { CleanerDashboard } from "./CleanerDashboard";
+// Dashboards now live on dedicated routes with real auth,
+// so the old in-component dashboard imports are no longer needed.
 
 // --- Constants & Types ---
 
@@ -68,10 +67,7 @@ type PageType =
   | "blog"
   | "contact"
   | "careers"
-  | "pricing"
-  | "admin"
-  | "customer"
-  | "cleaner";
+  | "pricing";
 
 const LOCATIONS = [
   { name: "Sea Point", slug: "sea-point" },
@@ -372,6 +368,52 @@ const BlogPreviewSection = ({
 
 // ─── HOME PAGE ────────────────────────────────────────────────────────────────
 const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
+  const [reviewSummary, setReviewSummary] = useState<{
+    averageRating: number | null;
+    totalReviews: number | null;
+  }>({ averageRating: null, totalReviews: null });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSummary = async () => {
+      try {
+        const res = await fetch("/api/reviews/summary");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data) {
+          setReviewSummary({
+            averageRating:
+              typeof data.averageRating === "number"
+                ? data.averageRating
+                : null,
+            totalReviews:
+              typeof data.totalReviews === "number"
+                ? data.totalReviews
+                : null,
+          });
+        }
+      } catch {
+        // ignore and keep defaults
+      }
+    };
+
+    loadSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const displayRating =
+    reviewSummary.averageRating !== null
+      ? reviewSummary.averageRating.toFixed(1)
+      : "4.5";
+  const displayTotalReviews =
+    reviewSummary.totalReviews !== null
+      ? `${reviewSummary.totalReviews}+`
+      : "4284+";
+
   return (
     <div className="pb-24">
       {/* Hero Section — full image background with left overlay, same width as navbar */}
@@ -443,7 +485,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
                 </div>
                 <span className="flex items-center gap-1 text-white font-semibold text-sm">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  4.5 (4284+ reviews)
+                  {displayRating} ({displayTotalReviews} reviews)
                 </span>
               </div>
               <p className="text-white/90 text-xs leading-snug">
@@ -657,9 +699,13 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               </div>
               <div className="flex items-center gap-2">
                 <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-                <span className="font-bold text-slate-900">4.5</span>
+                <span className="font-bold text-slate-900">
+                  {displayRating}
+                </span>
               </div>
-              <span className="text-slate-500 text-sm">(4234+ reviews)</span>
+              <span className="text-slate-500 text-sm">
+                ({displayTotalReviews} reviews)
+              </span>
             </div>
             <div className="grid md:grid-cols-3 gap-6">
               {[
@@ -874,12 +920,9 @@ export const ShaleanWebsite = () => {
     { label: "About", id: "about" },
     { label: "Careers", id: "careers" },
     { label: "Contact", id: "contact" },
-    { label: "Portal", id: "customer" },
   ];
 
-  const isDashboardPage = ["admin", "customer", "cleaner"].includes(
-    currentPage
-  );
+  const isDashboardPage = false;
 
   const isBookingConfirmed = currentPage === "booking" && bookingStep === 5;
 
@@ -945,23 +988,28 @@ export const ShaleanWebsite = () => {
                 </div>
               ) : (
                 <div className="hidden lg:flex items-center gap-8 text-sm">
-                  {["Home", "About", "Service", "Pricing", "Portal"].map(
-                    (label) => (
-                      <button
-                        key={label}
-                        onClick={() => {
-                          if (label === "Home") navigate("home");
-                          if (label === "About") navigate("about");
-                          if (label === "Service") navigate("services");
-                          if (label === "Pricing") navigate("pricing");
-                          if (label === "Portal") navigate("customer");
-                        }}
-                        className="font-medium text-white/80 hover:text-white transition-colors"
-                      >
-                        {label}
-                      </button>
-                    )
-                  )}
+                      {[
+                    "Home",
+                    "About",
+                    "Service",
+                    "Pricing",
+                    "Login or Sign Up",
+                  ].map((label) => (
+                    <button
+                      key={label}
+                      onClick={() => {
+                        if (label === "Home") navigate("home");
+                        if (label === "About") navigate("about");
+                        if (label === "Service") navigate("services");
+                        if (label === "Pricing") navigate("pricing");
+                        if (label === "Login or Sign Up")
+                          window.location.href = "/login";
+                      }}
+                      className="font-medium text-white/80 hover:text-white transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -1007,24 +1055,29 @@ export const ShaleanWebsite = () => {
               </button>
             </div>
             <div className="flex flex-col gap-6 text-lg">
-              {["Home", "About", "Service", "Pricing", "Portal"].map(
-                (label) => (
-                  <button
-                    key={label}
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      if (label === "Home") navigate("home");
-                      if (label === "About") navigate("about");
-                      if (label === "Service") navigate("services");
-                      if (label === "Pricing") navigate("pricing");
-                      if (label === "Portal") navigate("customer");
-                    }}
-                    className="text-left font-medium text-white/80 hover:text-white transition-colors"
-                  >
-                    {label}
-                  </button>
-                )
-              )}
+              {[
+                "Home",
+                "About",
+                "Service",
+                "Pricing",
+                "Login or Sign Up",
+              ].map((label) => (
+                <button
+                  key={label}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (label === "Home") navigate("home");
+                    if (label === "About") navigate("about");
+                    if (label === "Service") navigate("services");
+                    if (label === "Pricing") navigate("pricing");
+                    if (label === "Login or Sign Up")
+                      window.location.href = "/login";
+                  }}
+                  className="text-left font-medium text-white/80 hover:text-white transition-colors"
+                >
+                  {label}
+                </button>
+              ))}
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
@@ -1051,18 +1104,6 @@ export const ShaleanWebsite = () => {
         {currentPage === "about" && <AboutPage onNavigate={navigate} />}
         {currentPage === "careers" && <CareersPage onNavigate={navigate} />}
         {currentPage === "contact" && <ContactPage onNavigate={navigate} />}
-        {currentPage === "admin" && (
-          <AdminDashboard onBack={() => navigate("home")} />
-        )}
-        {currentPage === "customer" && (
-          <CustomerDashboard
-            onBack={() => navigate("home")}
-            onBookNew={() => navigate("booking")}
-          />
-        )}
-        {currentPage === "cleaner" && (
-          <CleanerDashboard onBack={() => navigate("home")} />
-        )}
         {currentPage === "blog" && <BlogPage onNavigate={navigate} />}
       </main>
 
@@ -1236,21 +1277,7 @@ export const ShaleanWebsite = () => {
         </div>
       )}
 
-      {/* Dev Navigation Helper */}
-      <div className="fixed bottom-20 left-6 z-50 flex gap-2">
-        <button
-          onClick={() => navigate("admin")}
-          className="p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-20 hover:opacity-100"
-        >
-          Admin
-        </button>
-        <button
-          onClick={() => navigate("cleaner")}
-          className="p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-20 hover:opacity-100"
-        >
-          Cleaner
-        </button>
-      </div>
+      {/* Dashboards now live on dedicated routes; dev navigation helper removed. */}
     </div>
   );
 };
