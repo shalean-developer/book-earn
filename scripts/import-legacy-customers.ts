@@ -142,7 +142,7 @@ async function importFromTable(tableName: string) {
 
   const { data, error } = await supabase
     .from(tableName)
-    .select<LegacyCustomerRow[]>(
+    .select(
       "id, email, phone, first_name, last_name, address_line1, address_suburb, address_city, role",
     );
 

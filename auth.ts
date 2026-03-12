@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthConfig } from "next-auth";
+import NextAuth, { type AuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 // Simple in-memory demo users and cleaner OTP store.
@@ -69,7 +69,7 @@ export function verifyCleanerCode(phone: string, code: string) {
   return ok;
 }
 
-const config = {
+const config: AuthOptions = {
   providers: [
     Credentials({
       id: "email-credentials",
@@ -161,7 +161,7 @@ const config = {
   session: {
     strategy: "jwt",
   },
-} satisfies NextAuthConfig;
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth(config);
 

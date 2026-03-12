@@ -24,6 +24,8 @@ interface StatCardProps {
   title: string;
   value: string;
   icon: React.ReactNode;
+  change?: string;
+  trend?: "up" | "down";
 }
 
 type OverviewStats = {
@@ -216,7 +218,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     type: "view" | "complete" | "cancel" | null;
     bookingId: string | null;
   }>({ type: null, bookingId: null });
-  const [fullBooking, setFullBooking] = useState<unknown | null>(null);
+  const [fullBooking, setFullBooking] = useState<Record<string, any> | null>(null);
   const [fullBookingLoading, setFullBookingLoading] = useState(false);
   const [fullBookingError, setFullBookingError] = useState<string | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);

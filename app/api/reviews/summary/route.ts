@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest) {
 
     let averageRating: number | null = null;
     if (customerRatings.length > 0) {
-      const sum = published.reduce(
+      const sum = customerRatings.reduce(
         (acc: number, r: any) => acc + (Number(r.rating) || 0),
         0
       );

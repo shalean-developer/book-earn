@@ -3,17 +3,18 @@ import { createClient } from "@/lib/supabase-server";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await context.params;
 
     const { data, error } = await supabase
       .from("bookings")
       // Fetch all columns to avoid mismatches with the table schema.
       // You can narrow this list later once you're happy with the data.
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
 
     if (error) {

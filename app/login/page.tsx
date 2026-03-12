@@ -1,6 +1,6 @@
-"use client";
+ "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -8,7 +8,7 @@ import { MapPin, User, ShieldCheck, Smartphone, KeyRound, Loader2 } from "lucide
 
 type RoleTab = "customer" | "admin" | "cleaner";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<RoleTab>(
@@ -331,6 +331,14 @@ export default function LoginPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
 
