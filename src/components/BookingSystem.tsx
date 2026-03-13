@@ -1364,7 +1364,7 @@ const Step1Plan = ({
 
       <div>
         <SectionHeader>3. Optional add-ons</SectionHeader>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
+        <div className="grid grid-cols-4 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
           {getExtrasForService(data.service).map((extra) => {
             const isQuantityEnabled = QUANTITY_ENABLED_EXTRAS.has(extra.id);
             const quantity = data.extras.filter((id) => id === extra.id).length;
@@ -1390,11 +1390,11 @@ const Step1Plan = ({
                     }));
                   }
                 }}
-                className={`group relative w-full aspect-square rounded-2xl border bg-white px-2 py-2 shadow-sm flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all text-center ${
+                className={`group relative w-full aspect-square rounded-2xl border bg-white px-2 py-2 shadow-sm flex flex-col items-center gap-1.5 cursor-pointer transition-all text-center sm:justify-center ${
                   selected
-                    ? "border-blue-500 text-blue-700 shadow-md"
-                    : "border-slate-200 text-slate-600 hover:text-blue-700 hover:border-slate-300 hover:shadow-md"
-                }`}
+                    ? "border-blue-500 shadow-md"
+                    : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                } ${selected ? "sm:text-blue-700" : "text-slate-600 hover:text-blue-700"}`}
               >
                 {extra.recommended && (
                   <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[9px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
@@ -1402,18 +1402,18 @@ const Step1Plan = ({
                   </span>
                 )}
                 <div
-                  className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  className={`w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0 sm:w-12 sm:h-12 sm:rounded-full sm:border-2 transition-colors ${
                     selected
-                      ? "border-blue-600 bg-blue-50 text-blue-600"
-                      : "border-blue-200 bg-white text-blue-500 group-hover:border-blue-500"
+                      ? "text-blue-600 sm:border-blue-600 sm:bg-blue-50"
+                      : "text-blue-600 sm:border-blue-200 sm:bg-white sm:text-blue-500 group-hover:sm:border-blue-500"
                   }`}
                 >
                   <div className="w-5 h-5">{extra.icon}</div>
                 </div>
-                <p className="text-[11px] font-semibold text-center leading-snug max-w-[80px] whitespace-normal">
+                <p className="text-[11px] font-semibold text-slate-900 text-center leading-tight break-words flex-1 min-w-0 sm:max-w-[80px] sm:leading-snug sm:whitespace-normal">
                   {extra.label}
                 </p>
-                <p className="text-[10px] font-bold text-blue-600">
+                <p className="hidden sm:block text-xs font-bold text-blue-600">
                   +R{displayExtraPrice}
                 </p>
               </div>
@@ -3172,9 +3172,7 @@ export const BookingSystem = ({
 
   return (
     <div className="w-full pt-4 pb-4 font-sans">
-      <main className={`max-w-7xl mx-auto px-3 sm:px-6 w-full ${
-        step === 2 || step === 3 || step === 4 ? "pb-2" : "pb-10"
-      }`}>
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 w-full pb-2">
         <div aria-live="polite" className="sr-only">
           {`Step ${step}: ${STEP_LABELS[step - 1]}`}
         </div>
@@ -3204,9 +3202,7 @@ export const BookingSystem = ({
                   transition={{
                   duration: 0.2,
                   }}
-                  className={`flex-1 lg:pb-0 ${
-                    step === 2 || step === 3 || step === 4 ? "pb-0" : "pb-40"
-                  }`}
+                  className="flex-1 pb-0 lg:pb-0"
                 >
                   {step === 1 && (
                     <Step1Plan
