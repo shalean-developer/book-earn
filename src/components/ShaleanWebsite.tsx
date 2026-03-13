@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -42,6 +42,8 @@ import {
   ExternalLink,
   FileText,
   Twitter,
+  LayoutDashboard,
+  LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookingSystem } from "./BookingSystem";
@@ -53,6 +55,7 @@ import { AboutSection } from "./AboutSection";
 import { CareersPage } from "./CareersPage";
 import { ContactPage } from "./ContactPage";
 import { BlogPage } from "./BlogPage";
+import { useSession, signOut } from "next-auth/react";
 // Dashboards now live on dedicated routes with real auth,
 // so the old in-component dashboard imports are no longer needed.
 
@@ -423,7 +426,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="relative rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[420px] lg:min-h-[500px]"
+            className="relative rounded-none sm:rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[75vh] sm:min-h-[420px] lg:min-h-[500px]"
           >
             {/* Full-bleed background image — cover to fill evenly, anchored left/top to show people */}
             <img
@@ -437,13 +440,13 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               aria-hidden
             />
 
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-stretch min-h-[420px] lg:min-h-[500px]">
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-stretch min-h-[75vh] sm:min-h-[420px] lg:min-h-[500px]">
               {/* Left — white text over dark overlay */}
-              <div className="flex flex-col justify-center p-8 md:p-10 lg:p-12 lg:max-w-[55%] order-2 lg:order-1">
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+              <div className="flex flex-col justify-center px-5 py-8 sm:p-8 md:p-10 lg:p-12 lg:max-w-[55%] order-2 lg:order-1">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 sm:mb-6">
                   Custom home cleaning services
                 </h1>
-                <p className="text-base md:text-lg text-white/95 leading-relaxed max-w-xl mb-8">
+                <p className="text-sm sm:text-base md:text-lg text-white/95 leading-relaxed max-w-xl mb-6 sm:mb-8">
                   Enjoy a spotless space with our trusted cleaning professionals. Eco-friendly, flexible, and always on time.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
@@ -463,11 +466,11 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               </div>
 
               {/* Right — image shows through; trust overlay bottom-right */}
-              <div className="relative flex-1 order-1 lg:order-2 min-h-[240px] lg:min-h-0" />
+              <div className="relative flex-1 order-1 lg:order-2 min-h-[220px] sm:min-h-[260px] lg:min-h-0" />
             </div>
 
-            {/* Trust badge — bottom right over image, margin from contact icons */}
-            <div className="absolute bottom-4 right-4 left-4 lg:left-auto lg:right-20 lg:w-[280px] z-20 bg-slate-900/70 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+            {/* Trust badge — bottom right over image on tablet/desktop, hidden on very small screens */}
+            <div className="hidden sm:block absolute bottom-4 right-4 left-4 lg:left-auto lg:right-20 lg:w-[280px] z-20 bg-slate-900/70 backdrop-blur-sm rounded-xl p-4 border border-white/10">
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex -space-x-2">
                   {[
@@ -493,6 +496,37 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               </p>
             </div>
           </motion.div>
+
+          {/* Mobile trust badge — stacked under hero for better responsiveness */}
+          <div className="sm:hidden mt-3">
+            <div className="bg-slate-900 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 shadow-md">
+              <div className="flex items-center gap-2">
+                <div className="flex -space-x-2">
+                  {[
+                    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop",
+                    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop",
+                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=64&h=64&fit=crop",
+                  ].map((src, i) => (
+                    <img
+                      key={i}
+                      src={src}
+                      alt=""
+                      className="w-7 h-7 rounded-full border-2 border-white/80 object-cover"
+                    />
+                  ))}
+                </div>
+                <div className="flex flex-col">
+                  <span className="flex items-center gap-1 text-white text-xs font-semibold">
+                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    {displayRating} ({displayTotalReviews} reviews)
+                  </span>
+                  <span className="text-[11px] text-white/80">
+                    Over 500 people trust our cleaners.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -882,6 +916,9 @@ export const ShaleanWebsite = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === "authenticated";
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -988,13 +1025,7 @@ export const ShaleanWebsite = () => {
                 </div>
               ) : (
                 <div className="hidden lg:flex items-center gap-8 text-sm">
-                      {[
-                    "Home",
-                    "About",
-                    "Service",
-                    "Pricing",
-                    "Login or Sign Up",
-                  ].map((label) => (
+                  {["Home", "About", "Service", "Pricing"].map((label) => (
                     <button
                       key={label}
                       onClick={() => {
@@ -1002,26 +1033,93 @@ export const ShaleanWebsite = () => {
                         if (label === "About") navigate("about");
                         if (label === "Service") navigate("services");
                         if (label === "Pricing") navigate("pricing");
-                        if (label === "Login or Sign Up")
-                          window.location.href = "/login";
                       }}
                       className="font-medium text-white/80 hover:text-white transition-colors"
                     >
                       {label}
                     </button>
                   ))}
+                  {!isAuthenticated && (
+                    <button
+                      onClick={() => {
+                        window.location.href = "/login";
+                      }}
+                      className="font-medium text-white/80 hover:text-white transition-colors"
+                    >
+                      Login or Sign Up
+                    </button>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Contact CTA & Mobile Menu Button */}
-            <div className="flex items-center gap-3 flex-shrink-0">
+            {/* Contact CTA, Avatar & Mobile Menu Button */}
+            <div className="relative flex items-center gap-3 flex-shrink-0">
               <button
                 onClick={() => navigate("contact")}
                 className="hidden sm:inline-flex rounded-full bg-blue-600 hover:bg-blue-700 text-sm font-semibold px-5 py-2 text-white shadow-md transition-colors"
               >
                 Get Quote
               </button>
+              {isAuthenticated && (
+                <div className="hidden sm:flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAvatarMenuOpen((open) => !open)}
+                    className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center text-sm font-semibold border border-slate-200 hover:border-blue-400 transition-colors"
+                  >
+                    {session?.user?.name
+                      ? session.user.name.charAt(0).toUpperCase()
+                      : session?.user?.email
+                      ? session.user.email.charAt(0).toUpperCase()
+                      : "U"}
+                  </button>
+                  {avatarMenuOpen && (
+                    <div className="absolute right-0 top-11 mt-2 w-44 rounded-xl bg-white text-slate-900 shadow-lg border border-slate-100 py-2 text-sm z-50">
+                      <button
+                        onClick={() => {
+                          setAvatarMenuOpen(false);
+                          const role = (session?.user as any)?.role;
+                          if (role === "admin") {
+                            window.location.href = "/admin";
+                          } else if (role === "customer") {
+                            window.location.href = "/customer";
+                          } else if (role === "cleaner") {
+                            window.location.href = "/cleaner";
+                          } else {
+                            navigate("home");
+                          }
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-slate-100"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-slate-500" />
+                        <span>Dashboard</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAvatarMenuOpen(false);
+                          navigate("contact");
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-slate-100"
+                      >
+                        <HelpCircle className="w-4 h-4 text-slate-500" />
+                        <span>Help</span>
+                      </button>
+                      <div className="my-1 h-px bg-slate-100" />
+                      <button
+                        onClick={() => {
+                          setAvatarMenuOpen(false);
+                          signOut({ callbackUrl: "/" });
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 hover:bg-red-50"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white"
                 onClick={() => setMobileMenuOpen(true)}
@@ -1060,7 +1158,6 @@ export const ShaleanWebsite = () => {
                 "About",
                 "Service",
                 "Pricing",
-                "Login or Sign Up",
               ].map((label) => (
                 <button
                   key={label}
@@ -1070,14 +1167,23 @@ export const ShaleanWebsite = () => {
                     if (label === "About") navigate("about");
                     if (label === "Service") navigate("services");
                     if (label === "Pricing") navigate("pricing");
-                    if (label === "Login or Sign Up")
-                      window.location.href = "/login";
                   }}
                   className="text-left font-medium text-white/80 hover:text-white transition-colors"
                 >
                   {label}
                 </button>
               ))}
+              {!isAuthenticated && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    window.location.href = "/login";
+                  }}
+                  className="text-left font-medium text-white/80 hover:text-white transition-colors"
+                >
+                  Login or Sign Up
+                </button>
+              )}
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
@@ -1093,7 +1199,7 @@ export const ShaleanWebsite = () => {
       </AnimatePresence>
 
       {/* Content Area */}
-      <main className={`flex-grow ${isDashboardPage ? "" : "pt-28"}`}>
+      <main className={`flex-grow ${isDashboardPage ? "" : "pt-24 md:pt-28"}`}>
         {currentPage === "home" && <HomePage onNavigate={navigate} />}
         {currentPage === "booking" && (
           <BookingPage onNavigate={navigate} onStepChange={setBookingStep} />
@@ -1263,7 +1369,7 @@ export const ShaleanWebsite = () => {
       )}
 
       {/* Sticky Mobile Book Button */}
-      {currentPage !== "booking" && !isDashboardPage && (
+      {currentPage !== "booking" && currentPage !== "home" && !isDashboardPage && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-40 flex gap-4">
           <Button
             onClick={() => navigate("booking")}

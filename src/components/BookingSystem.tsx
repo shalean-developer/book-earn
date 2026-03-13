@@ -39,6 +39,7 @@ import {
   User,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
@@ -490,6 +491,36 @@ function getDatesForMonth(): string[] {
   return dates;
 }
 
+/**
+ * Groups a list of dates (from today onward) into month blocks for mobile.
+ * Block 0: current month from today to last day.
+ * Block 1,2,...: full calendar months (1st to last day).
+ * Returns up to 5 blocks. Used so mobile can show first 3 months then "next 2" on arrow.
+ */
+function getMonthBlocksFromDates(dates: string[]): string[][] {
+  if (dates.length === 0) return [];
+  const blocks: string[][] = [];
+  let currentBlock: string[] = [];
+  let lastMonth = -1;
+  let lastYear = -1;
+
+  for (const dateStr of dates) {
+    const d = new Date(dateStr + "T00:00:00");
+    const month = d.getMonth();
+    const year = d.getFullYear();
+
+    if (lastMonth !== -1 && (month !== lastMonth || year !== lastYear)) {
+      blocks.push(currentBlock);
+      currentBlock = [];
+    }
+    currentBlock.push(dateStr);
+    lastMonth = month;
+    lastYear = year;
+  }
+  if (currentBlock.length) blocks.push(currentBlock);
+  return blocks;
+}
+
 function getDayOfWeekFromDate(dateStr: string): DayOfWeek {
   const d = new Date(dateStr + "T00:00:00");
   const dow = d.getDay(); // 0 (Sun) - 6 (Sat)
@@ -734,7 +765,7 @@ const SelectionCard = ({
 }) => (
   <div
     onClick={onClick}
-    className={`rounded-xl border-2 cursor-pointer transition-all duration-200 p-4 ${
+    className={`w-full rounded-xl border-2 cursor-pointer transition-all duration-200 p-4 ${
       selected
         ? "border-blue-600 bg-blue-50/50 shadow-sm"
         : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
@@ -913,7 +944,7 @@ const Step1Plan = ({
         </StepTitle>
 
         <SectionHeader>1. Service type</SectionHeader>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-4 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
           {SERVICES.map((s) => {
             const selected = data.service === s.id;
             const overrideBase = pricingState.baseByService[s.id];
@@ -944,24 +975,53 @@ const Step1Plan = ({
                     };
                   });
                 }}
-                className={`w-full min-h-[120px] rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition-all flex flex-col gap-2 ${
+                className={`w-full aspect-square rounded-2xl border bg-white px-2 py-2 shadow-sm transition-all flex flex-col gap-1.5 items-center text-center sm:aspect-auto sm:min-h-[110px] sm:px-4 sm:py-3 sm:gap-2 sm:items-start sm:text-left ${
                   selected
                     ? "border-blue-500 shadow-md"
                     : "border-slate-200 hover:shadow-md hover:border-slate-300"
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-md bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0 sm:w-12 sm:h-12">
                     <div className="w-5 h-5 text-blue-600">{s.icon}</div>
                   </div>
-                  <h4 className="font-semibold text-slate-900 text-sm leading-snug break-words flex-1 min-w-0">
-                    {s.title}
+                  <h4 className="font-semibold text-slate-900 text-[11px] leading-tight break-words flex-1 min-w-0 sm:text-sm">
+                    {s.id === "standard" && (
+                      <span className="flex flex-col">
+                        <span>Standard</span>
+                        <span>Cleaning</span>
+                      </span>
+                    )}
+                    {s.id === "deep" && (
+                      <span className="flex flex-col">
+                        <span>Deep</span>
+                        <span>Cleaning</span>
+                      </span>
+                    )}
+                    {s.id === "move" && (
+                      <span className="flex flex-col">
+                        <span>Moving</span>
+                        <span>Cleaning</span>
+                      </span>
+                    )}
+                    {s.id === "airbnb" && (
+                      <span className="flex flex-col">
+                        <span>Airbnb</span>
+                        <span>Cleaning</span>
+                      </span>
+                    )}
+                    {s.id === "carpet" && (
+                      <span className="flex flex-col">
+                        <span>Carpet</span>
+                        <span>Cleaning</span>
+                      </span>
+                    )}
                   </h4>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-snug break-words">
+                <p className="hidden text-[11px] text-slate-500 leading-snug break-words sm:block">
                   {s.description}
                 </p>
-                <p className="text-xs font-bold text-blue-600">
+                <p className="hidden text-xs font-bold text-blue-600 sm:block">
                   From R{displayPrice}
                 </p>
               </button>
@@ -1304,7 +1364,7 @@ const Step1Plan = ({
 
       <div>
         <SectionHeader>3. Optional add-ons</SectionHeader>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
           {getExtrasForService(data.service).map((extra) => {
             const isQuantityEnabled = QUANTITY_ENABLED_EXTRAS.has(extra.id);
             const quantity = data.extras.filter((id) => id === extra.id).length;
@@ -1330,10 +1390,10 @@ const Step1Plan = ({
                     }));
                   }
                 }}
-                className={`group relative flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                className={`group relative w-full aspect-square rounded-2xl border bg-white px-2 py-2 shadow-sm flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all text-center ${
                   selected
-                    ? "text-blue-700"
-                    : "text-slate-600 hover:text-blue-700"
+                    ? "border-blue-500 text-blue-700 shadow-md"
+                    : "border-slate-200 text-slate-600 hover:text-blue-700 hover:border-slate-300 hover:shadow-md"
                 }`}
               >
                 {extra.recommended && (
@@ -1504,6 +1564,8 @@ function Step2Schedule({
   };
 
   const [visibleStart, setVisibleStart] = useState(0);
+  const [showAllMobileDates, setShowAllMobileDates] = useState(false);
+  const [mobileCalendarPage, setMobileCalendarPage] = useState(0);
 
   const maxVisibleStart = Math.max(0, availableDates.length - 7);
 
@@ -1511,6 +1573,22 @@ function Step2Schedule({
     () => availableDates.slice(visibleStart, visibleStart + 7),
     [availableDates, visibleStart]
   );
+
+  const mobileMonthBlocks = useMemo(
+    () => getMonthBlocksFromDates(availableDates),
+    [availableDates]
+  );
+
+  const mobileDateChunksPage0 = useMemo(
+    () => mobileMonthBlocks.slice(0, 3),
+    [mobileMonthBlocks]
+  );
+  const mobileDateChunksPage1 = useMemo(
+    () => mobileMonthBlocks.slice(3, 5),
+    [mobileMonthBlocks]
+  );
+  const hasNextMobilePage = mobileDateChunksPage1.length > 0;
+  const mobileDateChunks = mobileCalendarPage === 0 ? mobileDateChunksPage0 : mobileDateChunksPage1;
 
   const selectedDateLabel = data.date ? formatDate(data.date) : "";
 
@@ -1530,7 +1608,7 @@ function Step2Schedule({
         When &amp; What Time
       </StepTitle>
 
-      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-6">
+      <div className="space-y-6">
         <div>
           <SectionHeader>1. How often do you need cleaning?</SectionHeader>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1647,39 +1725,38 @@ function Step2Schedule({
           )}
         </div>
 
-        <div>
+        {/* Date & Time: desktop + mobile (separate layouts) */}
+
+        {/* Mobile Date & Time */}
+        <div className="lg:hidden space-y-3">
           <SectionHeader>2. Date &amp; Time</SectionHeader>
-          <p className="text-[10px] text-slate-500 mb-2 ml-1">
-            You can book up to 3 months in advance.
-          </p>
-          {monthYearLabel && (
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                {monthYearLabel}
-              </p>
-            </div>
-          )}
-          <div className="mb-2">
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  setVisibleStart((prev) => Math.max(0, prev - 1))
-                }
-                disabled={visibleStart === 0}
-                className="w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <div className="flex gap-3">
-                {visibleDates.map((dateStr) => {
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] text-slate-500 ml-1">
+              Pick any available date and time.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (!showAllMobileDates) setMobileCalendarPage(0);
+                setShowAllMobileDates((prev) => !prev);
+              }}
+              className="text-[10px] font-semibold text-blue-600 underline-offset-2 hover:underline"
+            >
+              {showAllMobileDates ? "View fewer dates" : "View more dates"}
+            </button>
+          </div>
+
+          {/* Compact 5-day strip (default) */}
+          {!showAllMobileDates && (
+            <div className="mb-1">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {availableDates.slice(0, 5).map((dateStr) => {
                   const d = new Date(dateStr + "T00:00:00");
                   const dayName = d.toLocaleDateString("en-ZA", {
                     weekday: "short",
                   });
                   const dayNum = d.getDate();
                   const selected = data.date === dateStr;
-                  const availability = getDateAvailability(dateStr);
                   return (
                     <button
                       key={dateStr}
@@ -1697,7 +1774,7 @@ function Step2Schedule({
                               : prev.cleaningDays,
                         }));
                       }}
-                      className={`min-w-[72px] px-3 py-2 rounded-full text-center text-xs font-semibold transition-all border-2 ${
+                      className={`min-w-[64px] px-3 py-2 rounded-full text-center text-[11px] font-semibold transition-all border-2 flex-shrink-0 ${
                         selected
                           ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                           : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50"
@@ -1711,70 +1788,257 @@ function Step2Schedule({
                         {dayName}
                       </p>
                       <p className="text-sm font-black leading-none">{dayNum}</p>
-                      {availability === "limited" && (
-                        <p
-                          className={`mt-0.5 text-[9px] font-semibold ${
-                            selected ? "text-amber-200" : "text-amber-600"
-                          }`}
-                        >
-                          Limited
-                        </p>
-                      )}
                     </button>
                   );
                 })}
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setVisibleStart((prev) => Math.min(maxVisibleStart, prev + 1))
-                }
-                disabled={visibleStart >= maxVisibleStart}
-                className="w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
             </div>
-          </div>
+          )}
+
+          {/* Full month-style grid when expanded (mobile only): first 3 months, then next 2 on arrow */}
+          {showAllMobileDates && (
+            <div className="mt-1 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileCalendarPage((p) => Math.max(0, p - 1))}
+                  disabled={mobileCalendarPage === 0}
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-[11px] font-semibold text-slate-600">
+                  {mobileCalendarPage === 0 ? "Months 1–3" : "Months 4–5"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileCalendarPage((p) => (hasNextMobilePage ? 1 : p))}
+                  disabled={!hasNextMobilePage || mobileCalendarPage === 1}
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              {mobileDateChunks.map((chunk, idx) => {
+                const firstDateStr = chunk[0];
+                const d0 = new Date(firstDateStr + "T00:00:00");
+                const label = d0.toLocaleDateString("en-ZA", {
+                  month: "long",
+                  year: "numeric",
+                });
+                const leadingBlanks = d0.getDay();
+                return (
+                  <div key={idx} className="space-y-2">
+                    <div className="flex items-center justify-center">
+                      <p className="text-[11px] font-semibold text-slate-700">
+                        {label}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-7 text-[9px] font-semibold text-slate-400 mb-1">
+                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => (
+                        <div key={w} className="text-center">
+                          {w}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({ length: leadingBlanks }, (_, i) => (
+                        <div key={`blank-${i}`} className="h-8" />
+                      ))}
+                      {chunk.map((dateStr) => {
+                        const d = new Date(dateStr + "T00:00:00");
+                        const dayNum = d.getDate();
+                        const selected = data.date === dateStr;
+                        return (
+                          <button
+                            key={dateStr}
+                            type="button"
+                            onClick={() => {
+                              setData((prev) => ({
+                                ...prev,
+                                date: dateStr,
+                                cleaningDays:
+                                  prev.cleaningFrequency === "weekly"
+                                    ? [getDayOfWeekFromDate(dateStr)]
+                                    : prev.cleaningFrequency === "multi_week" &&
+                                      prev.cleaningDays.length === 0
+                                    ? [getDayOfWeekFromDate(dateStr)]
+                                    : prev.cleaningDays,
+                              }));
+                              setShowAllMobileDates(false);
+                            }}
+                            className={`h-8 rounded-full text-[11px] font-semibold flex items-center justify-center border ${
+                              selected
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            {dayNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {data.date && (
+            <div className="space-y-2 w-full max-w-[350px]">
+              <p className="text-[11px] font-medium text-slate-500">
+                {selectedDateLabel
+                  ? `Select a time on ${selectedDateLabel}.`
+                  : "Select a time that works best for you."}
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {timeSlots.slice(0, 16).map((slot) => (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() =>
+                      setData((prev) => ({
+                        ...prev,
+                        time: slot,
+                      }))
+                    }
+                    className={`py-2.5 rounded-2xl border-2 font-bold text-xs transition-all flex items-center justify-center gap-1 ${
+                      data.time === slot
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5 opacity-70" />
+                    <span>{slot}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!data.date && (
+            <p className="text-[11px] text-slate-500">
+              Choose a date above to see available time slots.
+            </p>
+          )}
         </div>
 
-        {data.date && (
-          <div className="space-y-3">
-            <p className="text-[11px] font-medium text-slate-500">
-              {selectedDateLabel
-                ? `Select a time on ${selectedDateLabel}.`
-                : "Select a time that works best for you."}
+        {/* Desktop Date & Time */}
+        <div className="hidden lg:block space-y-4">
+          <div>
+            <SectionHeader>2. Date &amp; Time</SectionHeader>
+            <p className="text-[10px] text-slate-500 mb-2 ml-1">
+              You can book up to 3 months in advance.
             </p>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {timeSlots.map((slot) => (
+            {monthYearLabel && (
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  {monthYearLabel}
+                </p>
+              </div>
+            )}
+            <div className="mb-2">
+              <div className="flex items-center justify-center gap-3">
                 <button
-                  key={slot}
                   type="button"
                   onClick={() =>
-                    setData((prev) => ({
-                      ...prev,
-                      time: slot,
-                    }))
+                    setVisibleStart((prev) => Math.max(0, prev - 1))
                   }
-                  className={`py-2.5 rounded-2xl border-2 font-bold text-xs transition-all flex items-center justify-center gap-1 ${
-                    data.time === slot
-                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                      : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-                  }`}
+                  disabled={visibleStart === 0}
+                  className="w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
                 >
-                  <Clock className="w-3.5 h-3.5 opacity-70" />
-                  <span>{slot}</span>
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-              ))}
+                <div className="flex gap-3">
+                  {visibleDates.map((dateStr) => {
+                    const d = new Date(dateStr + "T00:00:00");
+                    const dayName = d.toLocaleDateString("en-ZA", {
+                      weekday: "short",
+                    });
+                    const dayNum = d.getDate();
+                    const selected = data.date === dateStr;
+                    const availability = getDateAvailability(dateStr);
+                    return (
+                      <button
+                        key={dateStr}
+                        type="button"
+                        onClick={() => {
+                          setData((prev) => ({
+                            ...prev,
+                            date: dateStr,
+                            cleaningDays:
+                              prev.cleaningFrequency === "weekly"
+                                ? [getDayOfWeekFromDate(dateStr)]
+                                : prev.cleaningFrequency === "multi_week" &&
+                                  prev.cleaningDays.length === 0
+                                ? [getDayOfWeekFromDate(dateStr)]
+                                : prev.cleaningDays,
+                          }));
+                        }}
+                        className={`min-w-[72px] px-3 py-3 rounded-full text-center text-xs font-semibold transition-all border-2 ${
+                          selected
+                            ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                            : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50"
+                        }`}
+                      >
+                        <p
+                          className={`text-[9px] font-semibold mb-0.5 ${
+                            selected ? "text-blue-100" : "text-slate-400"
+                          }`}
+                        >
+                          {dayName}
+                        </p>
+                        <p className="text-sm font-black leading-none">{dayNum}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleStart((prev) => Math.min(maxVisibleStart, prev + 1))
+                  }
+                  disabled={visibleStart >= maxVisibleStart}
+                  className="w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
-        )}
 
-        {!data.date && (
-          <p className="text-[11px] text-slate-500">
-            Choose any available date above to see open time slots for your clean.
-          </p>
-        )}
+          {data.date && (
+            <div className="space-y-3">
+              <p className="text-[11px] font-medium text-slate-500">
+                {selectedDateLabel
+                  ? `Select a time on ${selectedDateLabel}.`
+                  : "Select a time that works best for you."}
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {timeSlots.map((slot) => (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() =>
+                      setData((prev) => ({
+                        ...prev,
+                        time: slot,
+                      }))
+                    }
+                    className={`py-2.5 rounded-2xl border-2 font-bold text-xs transition-all flex items-center justify-center gap-1 ${
+                      data.time === slot
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5 opacity-70" />
+                    <span>{slot}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2907,14 +3171,16 @@ export const BookingSystem = ({
   }, [data, pricing, pricingReady]);
 
   return (
-    <div className="w-full pt-4 pb-6 font-sans">
-      <main className="max-w-7xl mx-auto px-6 w-full pb-10">
+    <div className="w-full pt-4 pb-4 font-sans">
+      <main className={`max-w-7xl mx-auto px-3 sm:px-6 w-full ${
+        step === 2 || step === 3 || step === 4 ? "pb-2" : "pb-10"
+      }`}>
         <div aria-live="polite" className="sr-only">
           {`Step ${step}: ${STEP_LABELS[step - 1]}`}
         </div>
         <div className={`grid gap-8 items-start ${step < 5 ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,360px)]" : "max-w-xl mx-auto"}`}>
           <div className="space-y-6">
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-10 shadow-sm">
+            <div className={`bg-transparent sm:bg-white rounded-3xl border-0 sm:border sm:border-slate-200 px-0 shadow-sm flex flex-col gap-8 ${step === 3 ? "pt-6 pb-2 sm:pt-10 sm:px-10 sm:pb-2" : "py-6 sm:p-10"}`}>
               {redirectedFromDeepLink && step === 1 && (
                 <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
                   To finish your booking, start with your cleaning plan. We brought you back to Step 1 so you can complete the details above first.
@@ -2936,8 +3202,11 @@ export const BookingSystem = ({
                     x: -10,
                   }}
                   transition={{
-                    duration: 0.2,
+                  duration: 0.2,
                   }}
+                  className={`flex-1 lg:pb-0 ${
+                    step === 2 || step === 3 || step === 4 ? "pb-0" : "pb-40"
+                  }`}
                 >
                   {step === 1 && (
                     <Step1Plan
@@ -2983,7 +3252,7 @@ export const BookingSystem = ({
               </AnimatePresence>
 
               {step < 5 && (
-                <div className="flex gap-4 mt-12 pt-8 border-t border-slate-100">
+                <div className="hidden lg:flex gap-4 pt-4 border-t border-slate-100">
                   {step > 1 && (
                     <button
                       onClick={prevStep}
@@ -3009,7 +3278,7 @@ export const BookingSystem = ({
           </div>
 
           {step < 5 && (
-          <aside className="sticky top-6 z-10 self-start space-y-6">
+          <aside className="hidden lg:block sticky top-6 z-10 self-start space-y-6">
             <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-2xl">
               <div className="flex items-center gap-2 opacity-60 mb-1">
                 <CreditCard className="w-4 h-4" />
@@ -3149,32 +3418,150 @@ export const BookingSystem = ({
 
       {step < 5 && step !== 4 && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 z-40 pb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Total Estimate
-              </span>
-              <span className="text-2xl font-black text-slate-900">
-                R{pricing.total}
-              </span>
-            </div>
-            <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full">
-              Step {step} of 4
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {step > 1 && (
-              <button
-                onClick={prevStep}
-                className="p-4 border-2 border-slate-200 rounded-2xl text-slate-600"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-            )}
+          <div className="flex items-center gap-3">
+            <Sheet>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="flex-1 flex flex-col text-left focus:outline-none"
+                >
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Total Estimate
+                  </span>
+                  <span className="text-2xl font-black text-slate-900">
+                    R{pricing.total}
+                  </span>
+                  <span className="text-[10px] text-blue-600 font-semibold mt-1">
+                    View order summary
+                  </span>
+                </button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto">
+                <SheetHeader className="mb-4">
+                  <SheetTitle>Order Summary</SheetTitle>
+                </SheetHeader>
+                <div className="space-y-4 text-sm">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black">R{pricing.total}</span>
+                    <span className="text-xs opacity-60 ml-1">Total Estimate</span>
+                  </div>
+
+                  <div className="mt-4 space-y-3.5 text-[11px]">
+                    <div className="flex justify-between pb-2 border-b border-slate-200">
+                      <span className="opacity-60">Service</span>
+                      <span className="font-bold">
+                        {SERVICES.find((s) => s.id === data.service)?.title}
+                      </span>
+                    </div>
+                    {data.service !== "carpet" && data.propertyType !== "office" && (
+                      <div className="flex justify-between pb-2 border-b border-slate-200">
+                        <span className="opacity-60">Home details</span>
+                        <span className="font-bold text-right">
+                          {data.bedrooms} bedroom{data.bedrooms !== 1 ? "s" : ""} ·{" "}
+                          {data.bathrooms} bathroom{data.bathrooms !== 1 ? "s" : ""} ·{" "}
+                          {data.extraRooms} extra room{data.extraRooms !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pb-2 border-b border-slate-200">
+                      <span className="opacity-60">Frequency</span>
+                      <span className="font-bold text-right">
+                        {data.cleaningFrequency === "once"
+                          ? "Once"
+                          : data.cleaningFrequency === "weekly"
+                          ? "Weekly"
+                          : "Multiple times a week"}
+                        {data.cleaningFrequency === "multi_week" &&
+                          data.cleaningDays.length > 0 &&
+                          ` · ${data.cleaningDays.join(", ")}`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-slate-200">
+                      <span className="opacity-60">Schedule</span>
+                      <span className="font-bold text-right">
+                        {data.date ? formatDate(data.date) : "Not set"}
+                        {data.time && data.date && ` · ${data.time}`}
+                      </span>
+                    </div>
+                    {data.propertyType === "office" && (
+                      <div className="flex justify-between pb-2 border-b border-slate-200">
+                        <span className="opacity-60">Office details</span>
+                        <span className="font-bold text-right">
+                          {data.privateOffices} private · {data.meetingRooms} rooms
+                          {data.officeSize &&
+                            ` · ${
+                              data.officeSize === "small"
+                                ? "Small"
+                                : data.officeSize === "medium"
+                                ? "Medium"
+                                : data.officeSize === "large"
+                                ? "Large"
+                                : "XL"
+                            }`}
+                        </span>
+                      </div>
+                    )}
+                    {data.service === "carpet" && (
+                      <div className="flex justify-between pb-2 border-b border-slate-200">
+                        <span className="opacity-60">Carpet details</span>
+                        <span className="font-bold text-right">
+                          {data.carpetedRooms} rooms · {data.looseRugs} rugs ·{" "}
+                          {data.carpetExtraCleaners} extra cleaner
+                        </span>
+                      </div>
+                    )}
+                    {data.extras.length > 0 && (
+                      <div className="flex justify-between pb-2 border-b border-slate-200">
+                        <span className="opacity-60">Extras</span>
+                        <span className="font-bold">
+                          {data.extras.length} items (R{pricing.extrasTotal})
+                        </span>
+                      </div>
+                    )}
+                    {(data.cleanerId || data.teamId) && (
+                      <div className="flex justify-between pb-2 border-b border-slate-200">
+                        <span className="opacity-60">Professional</span>
+                        <span className="font-bold">
+                          {data.cleanerId
+                            ? data.cleanerId === "any"
+                              ? "Any available cleaner"
+                              : cleaners.find((c) => c.id === data.cleanerId)?.name
+                            : data.teamId === "any"
+                            ? "Any available team"
+                            : TEAMS.find((t) => t.id === data.teamId)?.name}
+                        </span>
+                      </div>
+                    )}
+                    <div className="pt-2 space-y-2">
+                      <div className="flex justify-between">
+                        <span className="opacity-60">Subtotal</span>
+                        <span className="font-medium">R{pricing.subtotal}</span>
+                      </div>
+                      {pricing.discountAmount > 0 && (
+                        <div className="flex justify-between text-emerald-600">
+                          <span className="opacity-80">
+                            Discount ({data.promoCode})
+                          </span>
+                          <span className="font-bold">
+                            -R{pricing.discountAmount}
+                          </span>
+                        </div>
+                      )}
+                      {pricing.tipAmount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="opacity-60">Tip</span>
+                          <span className="font-medium">R{pricing.tipAmount}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
             <button
               onClick={nextStep}
               disabled={!canProceed()}
-              className="flex-1 bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-200"
+              className="min-w-[140px] bg-blue-600 text-white font-black py-3 px-6 rounded-2xl shadow-xl shadow-blue-200"
             >
               Continue
             </button>

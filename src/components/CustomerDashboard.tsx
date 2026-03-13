@@ -43,6 +43,13 @@ type CustomerBooking = {
   createdAt: string | null;
   customerRating: number | null;
   customerComment: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  extraRooms?: number | null;
+  instructions?: string | null;
+  extras?: string[];
+  cleanerId?: string | null;
+  cleanerName?: string | null;
 };
 
 type CustomerTab = "upcoming" | "history" | "settings" | "wallet";
@@ -78,6 +85,11 @@ interface Booking {
   price: string;
   location: string;
   rating: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  extraRooms?: number | null;
+  notes?: string | null;
+  extras?: string[];
 }
 
 function formatCurrency(amount: number, currency?: string | null) {
@@ -124,13 +136,25 @@ function shortAddress(address: string | null | undefined) {
 }
 
 function mapBookingToCard(b: CustomerBooking): Booking {
+  // Create a human-friendly public reference like SC09383893
+  const formatPublicReference = (raw: string | null | undefined) => {
+    const value = (raw || "").trim();
+    if (!value) return "";
+    // If it's already in the correct format, keep it.
+    if (/^SC\d{8}$/.test(value)) return value;
+    // Try to build a numeric code from the raw id/reference.
+    const digits = value.replace(/\D/g, "");
+    const core = digits.slice(-8).padStart(8, "0");
+    return `SC${core}`;
+  };
+
   return {
-    id: b.reference || b.id,
+    id: formatPublicReference(b.reference || b.id),
     bookingId: b.id,
     date: formatDateLabel(b.date, b.time),
     time: b.time || "",
     service: b.service || "Cleaning",
-    cleaner: "Your Shalean Pro",
+    cleaner: b.cleanerName ?? "Your Shalean Pro",
     status: (b.status as BookingStatus) || "pending",
     price: formatCurrency(b.totalAmount, b.currency),
     location: b.address || "To be confirmed",
@@ -138,6 +162,11 @@ function mapBookingToCard(b: CustomerBooking): Booking {
       typeof b.customerRating === "number" && Number.isFinite(b.customerRating)
         ? b.customerRating
         : null,
+    bedrooms: b.bedrooms ?? null,
+    bathrooms: b.bathrooms ?? null,
+    extraRooms: b.extraRooms ?? null,
+    notes: b.instructions ?? null,
+    extras: Array.isArray(b.extras) ? b.extras : [],
   };
 }
 
@@ -145,10 +174,16 @@ const BookingCard = ({
   booking,
   type,
   onRate,
+  onRescheduleOrCancel,
+  onViewDetails,
+  onMessagePro,
 }: {
   booking: Booking;
   type: "upcoming" | "history";
   onRate?: (booking: Booking) => void;
+  onRescheduleOrCancel?: (booking: Booking) => void;
+  onViewDetails?: (booking: Booking) => void;
+  onMessagePro?: (booking: Booking) => void;
 }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
     <div className="p-6">
@@ -171,15 +206,28 @@ const BookingCard = ({
           </div>
         </div>
         <div className="text-right flex flex-col items-end">
+          {/*
+            Normalise status once so we can style and render the footer
+            correctly for completed vs cancelled vs other historical states.
+          */}
+          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
+          {/* @ts-ignore */}
+          {(() => {
+            const s = String(booking.status || "").toLowerCase();
+            return (
           <span
             className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 ${
-              booking.status === "completed"
+              s === "completed"
                 ? "bg-emerald-50 text-emerald-600"
-                : "bg-blue-50 text-blue-600"
+                : s === "cancelled"
+                  ? "bg-rose-50 text-rose-600"
+                  : "bg-blue-50 text-blue-600"
             }`}
           >
             {booking.status}
           </span>
+            );
+          })()}
           <p className="text-xl font-black text-slate-900">{booking.price}</p>
         </div>
       </div>
@@ -230,57 +278,108 @@ const BookingCard = ({
       <div className="mt-6 flex justify-between items-center">
         {type === "upcoming" ? (
           <>
-            <button className="text-slate-400 hover:text-rose-600 text-sm font-semibold transition-colors">
+            <button
+              className="text-slate-400 hover:text-rose-600 text-sm font-semibold transition-colors"
+              onClick={() => onRescheduleOrCancel?.(booking)}
+            >
               Reschedule / Cancel
             </button>
             <div className="flex gap-3">
-              <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50">
+              <button
+                className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50"
+                onClick={() => onViewDetails?.(booking)}
+              >
                 View Details
               </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm">
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm"
+                onClick={() => onMessagePro?.(booking)}
+              >
                 Message Pro
               </button>
             </div>
           </>
         ) : (
-          <>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold">
-                <CheckCircle className="w-4 h-4" /> Service Completed
-              </div>
-              {booking.rating ? (
-                <div className="flex items-center gap-1 text-amber-500 text-xs font-semibold">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`w-3 h-3 ${
-                        i < Math.round(booking.rating) ? "fill-amber-400" : "text-slate-200"
-                      }`}
-                    />
-                  ))}
-                  <span className="ml-1 text-slate-500">
-                    {booking.rating.toFixed(1)} / 5
-                  </span>
+          (() => {
+            const status = String(booking.status || "").toLowerCase();
+            if (status === "completed") {
+              return (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold">
+                      <CheckCircle className="w-4 h-4" /> Service Completed
+                    </div>
+                    {booking.rating ? (
+                      <div className="flex items-center gap-1 text-amber-500 text-xs font-semibold">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`w-3 h-3 ${
+                              i < Math.round(booking.rating)
+                                ? "fill-amber-400"
+                                : "text-slate-200"
+                            }`}
+                          />
+                        ))}
+                        <span className="ml-1 text-slate-500">
+                          {booking.rating.toFixed(1)} / 5
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-3">
+                    <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50">
+                      Get Invoice
+                    </button>
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm">
+                      Book Again
+                    </button>
+                    {type === "history" && (
+                      <button
+                        className="px-4 py-2 border border-amber-200 rounded-lg text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100"
+                        onClick={() => onRate?.(booking)}
+                      >
+                        {booking.rating ? "Update rating" : "Rate this clean"}
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            }
+
+            if (status === "cancelled") {
+              return (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-rose-600 text-sm font-bold">
+                      <AlertCircle className="w-4 h-4" /> Booking Cancelled
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm">
+                      Book Again
+                    </button>
+                  </div>
+                </>
+              );
+            }
+
+            // Fallback for other historical states like "failed"
+            return (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-slate-600 text-sm font-bold">
+                    <CheckCircle className="w-4 h-4" /> Booking Updated
+                  </div>
                 </div>
-              ) : null}
-            </div>
-            <div className="flex gap-3">
-              <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50">
-                Get Invoice
-              </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm">
-                Book Again
-              </button>
-              {type === "history" && (
-                <button
-                  className="px-4 py-2 border border-amber-200 rounded-lg text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100"
-                  onClick={() => onRate?.(booking)}
-                >
-                  {booking.rating ? "Update rating" : "Rate this clean"}
-                </button>
-              )}
-            </div>
-          </>
+                <div className="flex gap-3">
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm">
+                    Book Again
+                  </button>
+                </div>
+              </>
+            );
+          })()
         )}
       </div>
     </div>
@@ -310,6 +409,18 @@ export const CustomerDashboard = ({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [manageBooking, setManageBooking] = useState<Booking | null>(null);
+  const [detailsBooking, setDetailsBooking] = useState<Booking | null>(null);
+  const [manageSaving, setManageSaving] = useState(false);
+  const [manageError, setManageError] = useState<string | null>(null);
+  const [manageDate, setManageDate] = useState<string>("");
+  const [manageTime, setManageTime] = useState<string>("");
+  const [manageAddress, setManageAddress] = useState<string>("");
+  const [manageService, setManageService] = useState<string>("");
+  const [messageBooking, setMessageBooking] = useState<Booking | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [messageSaving, setMessageSaving] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
   const { data: session } = useSession();
 
   useEffect(() => {
@@ -803,61 +914,580 @@ export const CustomerDashboard = ({
         </div>
 
         <div className="space-y-6">
-          {activeTab === "upcoming" &&
-            (loadingBookings ? (
-              <div className="bg-white rounded-2xl p-8 text-center border border-slate-100">
-                <Calendar className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">Loading your upcoming cleans…</p>
-              </div>
-            ) : upcomingCards.length > 0 ? (
-              upcomingCards.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} type="upcoming" />
-              ))
-            ) : (
-              <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-200">
-                <Calendar className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                <h3 className="font-bold text-slate-900">No upcoming cleans</h3>
-                <p className="text-slate-500 text-sm mb-6">
-                  Need a professional to sparkle your home?
+          {manageBooking ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 md:p-8">
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <div className="space-y-1">
+                  <button
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600"
+                    onClick={() => {
+                      setManageBooking(null);
+                      setManageError(null);
+                      setManageDate("");
+                      setManageTime("");
+                    }}
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    Back to bookings
+                  </button>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                    Manage booking
+                  </p>
+                  <h2 className="text-xl md:text-2xl font-bold text-slate-900 lowercase first-letter:uppercase">
+                    {manageBooking.service}
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                    <span>
+                      {manageBooking.date} · {manageBooking.time}
+                    </span>
+                  </p>
+                </div>
+                <p className="hidden sm:block max-w-xs text-xs text-slate-500 text-right">
+                  Update this booking’s date, time, service, address, or cancel it. Changes are
+                  free up to 24 hours before your scheduled clean.
                 </p>
-                <button
-                  onClick={onBookNew}
-                  className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all"
-                >
-                  Book Now
-                </button>
               </div>
-            ))}
 
-          {activeTab === "history" &&
-            (loadingBookings ? (
-              <div className="bg-white rounded-2xl p-8 text-center border border-slate-100">
-                <History className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">Loading your past bookings…</p>
+              <div className="grid gap-6 md:grid-cols-[minmax(0,2.1fr)_minmax(0,1.2fr)]">
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-600">
+                    Choose a new date, time, service type, or home address. We&apos;ll send your
+                    cleaner an updated schedule automatically.
+                  </p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          New date
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+                          value={manageDate}
+                          onChange={(e) => setManageDate(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          New time
+                        </label>
+                        <input
+                          type="time"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+                          value={manageTime}
+                          onChange={(e) => setManageTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          Service type
+                        </label>
+                        <select
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+                          value={manageService}
+                          onChange={(e) => setManageService(e.target.value)}
+                        >
+                          <option value="">Keep current</option>
+                          <option value="Standard clean">Standard clean</option>
+                          <option value="Deep clean">Deep clean</option>
+                          <option value="Move-in / move-out clean">
+                            Move-in / move-out clean
+                          </option>
+                          <option value="Office clean">Office clean</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          Home address
+                        </label>
+                        <input
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
+                          placeholder="Leave blank to keep current address"
+                          value={manageAddress}
+                          onChange={(e) => setManageAddress(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 space-y-2">
+                    <button
+                      className="w-full px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-sm flex items-center justify-between disabled:opacity-60 disabled:cursor-not-allowed"
+                      disabled={
+                        manageSaving ||
+                        (!manageDate &&
+                          !manageTime &&
+                          !manageAddress.trim() &&
+                          !manageService.trim())
+                      }
+                      onClick={async () => {
+                        if (!manageBooking) return;
+                        try {
+                          setManageSaving(true);
+                          setManageError(null);
+                          const res = await fetch(
+                            `/api/customer/bookings/${encodeURIComponent(
+                              manageBooking.bookingId,
+                            )}/reschedule`,
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                              },
+                              body: JSON.stringify({
+                                date: manageDate || undefined,
+                                time: manageTime || undefined,
+                                address: manageAddress || undefined,
+                                service: manageService || undefined,
+                              }),
+                            },
+                          );
+                          if (!res.ok) {
+                            const body = (await res.json().catch(() => null)) as
+                              | { error?: string }
+                              | null;
+                            throw new Error(
+                              body?.error ||
+                                "We could not reschedule this booking. Please try again.",
+                            );
+                          }
+                          setBookings((prev) =>
+                            prev.map((b) => {
+                              if (b.id === manageBooking.bookingId) {
+                                return {
+                                  ...b,
+                                  date: manageDate || b.date,
+                                  time: manageTime || b.time,
+                                  address: manageAddress || b.address,
+                                  service: manageService || b.service,
+                                };
+                              }
+                              return b;
+                            }),
+                          );
+                          setManageBooking(null);
+                          setManageDate("");
+                          setManageTime("");
+                          setManageAddress("");
+                          setManageService("");
+                        } catch (err) {
+                          console.error("Failed to reschedule booking", err);
+                          setManageError(
+                            err instanceof Error
+                              ? err.message
+                              : "We could not reschedule this booking. Please try again.",
+                          );
+                        } finally {
+                          setManageSaving(false);
+                        }
+                      }}
+                    >
+                      <span>{manageSaving ? "Updating…" : "Reschedule this booking"}</span>
+                      <Calendar className="w-4 h-4 text-white" />
+                    </button>
+                    <button
+                      className="w-full px-4 py-2 rounded-lg border border-rose-200 text-sm font-semibold text-rose-600 hover:bg-rose-50 flex items-center justify-between disabled:opacity-60 disabled:cursor-not-allowed"
+                      disabled={manageSaving}
+                      onClick={async () => {
+                        if (!manageBooking) return;
+                        try {
+                          setManageSaving(true);
+                          setManageError(null);
+                          const res = await fetch(
+                            `/api/customer/bookings/${encodeURIComponent(
+                              manageBooking.bookingId,
+                            )}/cancel`,
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                              },
+                            },
+                          );
+                          if (!res.ok) {
+                            const body = (await res.json().catch(() => null)) as
+                              | { error?: string }
+                              | null;
+                            throw new Error(
+                              body?.error ||
+                                "We could not cancel this booking. Please try again.",
+                            );
+                          }
+                          setBookings((prev) =>
+                            prev.map((b) =>
+                              b.id === manageBooking.bookingId
+                                ? { ...b, status: "cancelled" as BookingStatus }
+                                : b,
+                            ),
+                          );
+                          setManageBooking(null);
+                        } catch (err) {
+                          console.error("Failed to cancel booking", err);
+                          setManageError(
+                            err instanceof Error
+                              ? err.message
+                              : "We could not cancel this booking. Please try again.",
+                          );
+                        } finally {
+                          setManageSaving(false);
+                        }
+                      }}
+                    >
+                      <span>{manageSaving ? "Cancelling…" : "Cancel this booking"}</span>
+                      <AlertCircle className="w-4 h-4" />
+                    </button>
+                    <div className="h-4 text-[11px] text-rose-600">
+                      {manageError ? manageError : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 text-[11px] text-slate-500">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4 space-y-2">
+                    <p className="font-semibold text-slate-700 text-xs">
+                      How changes & cancellations work
+                    </p>
+                    <p>
+                      Free changes up to 24 hours before your scheduled clean. After that, a
+                      late-change fee may apply.
+                    </p>
+                    <p>
+                      If you&apos;re moving the booking to a different day or changing the
+                      service type, pricing may update automatically based on your new plan.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-white p-4 space-y-2">
+                    <p className="font-semibold text-slate-700 text-xs">
+                      Current booking snapshot
+                    </p>
+                    <p>
+                      <span className="font-semibold">Service:</span> {manageBooking.service}
+                    </p>
+                    <p>
+                      <span className="font-semibold">When:</span> {manageBooking.date} ·{" "}
+                      {manageBooking.time || "Time to be confirmed"}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Address:</span> {manageBooking.location}
+                    </p>
+                  </div>
+                </div>
               </div>
-            ) : pastCards.length > 0 ? (
-              pastCards.map((booking) => (
-                <BookingCard
-                  key={booking.id}
-                  booking={booking}
-                  type="history"
-                  onRate={(b) => {
-                    setRatingBooking(b);
-                    setRatingValue(b.rating || 5);
-                    setRatingComment("");
-                    setRatingError(null);
-                  }}
-                />
-              ))
-            ) : (
-              <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-200">
-                <History className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                <h3 className="font-bold text-slate-900">No past bookings yet</h3>
-                <p className="text-slate-500 text-sm mb-6">
-                  Once you&apos;ve completed a clean, it will show here.
+            </div>
+          ) : detailsBooking ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 md:p-8">
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <div className="space-y-1">
+                  <button
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600"
+                    onClick={() => setDetailsBooking(null)}
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    Back to bookings
+                  </button>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                    Upcoming clean
+                  </p>
+                  <h2 className="text-xl md:text-2xl font-bold text-slate-900 lowercase first-letter:uppercase">
+                    {detailsBooking.service || "standard clean"}
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                    <span>
+                      {detailsBooking.date} · {detailsBooking.time}
+                    </span>
+                  </p>
+                </div>
+                <div className="text-right space-y-1">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700 capitalize">
+                    {String(detailsBooking.status || "").toLowerCase()}
+                  </span>
+                  <p className="text-lg font-black text-slate-900">{detailsBooking.price}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
+                <div className="space-y-5">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 text-sm text-slate-700">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 mb-3">
+                      What you booked
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Date & time
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                          <span>{detailsBooking.date}</span>
+                        </p>
+                        <p className="flex items-center gap-1.5 text-slate-600">
+                          <Clock className="w-3.5 h-3.5 text-blue-500" />
+                          <span>{detailsBooking.time || "Time to be confirmed"}</span>
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Address
+                        </p>
+                        <p className="flex items-start gap-1.5">
+                          <MapPin className="mt-0.5 w-3.5 h-3.5 text-blue-500" />
+                          <span>
+                            {detailsBooking.location ||
+                              "Address will be confirmed with our team."}
+                          </span>
+                        </p>
+                      </div>
+                      {(detailsBooking.bedrooms != null || detailsBooking.bathrooms != null || detailsBooking.extraRooms != null) && (
+                        <div className="sm:col-span-2 flex flex-wrap gap-4 pt-1 border-t border-slate-100">
+                          {detailsBooking.bedrooms != null && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                Bedrooms
+                              </p>
+                              <p className="text-slate-700 font-medium">{detailsBooking.bedrooms}</p>
+                            </div>
+                          )}
+                          {detailsBooking.bathrooms != null && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                Bathrooms
+                              </p>
+                              <p className="text-slate-700 font-medium">{detailsBooking.bathrooms}</p>
+                            </div>
+                          )}
+                          {detailsBooking.extraRooms != null && detailsBooking.extraRooms > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                Extra rooms
+                              </p>
+                              <p className="text-slate-700 font-medium">{detailsBooking.extraRooms}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {(detailsBooking.notes || (detailsBooking.extras && detailsBooking.extras.length > 0)) && (
+                    <div className="space-y-2 rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-700">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Notes & extras
+                      </p>
+                      {detailsBooking.notes ? (
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-500 mb-0.5">Instructions</p>
+                          <p className="text-slate-700 whitespace-pre-wrap">{detailsBooking.notes}</p>
+                        </div>
+                      ) : null}
+                      {detailsBooking.extras && detailsBooking.extras.length > 0 ? (
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-500 mb-1">Extras</p>
+                          <ul className="flex flex-wrap gap-1.5">
+                            {detailsBooking.extras.map((extra) => (
+                              <li
+                                key={extra}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-xs font-medium"
+                              >
+                                {extra}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-700">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Service overview
+                      </p>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                        <Sparkles className="w-3 h-3" />
+                        Premium clean
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-700">
+                      {detailsBooking.service || "Standard home clean"} with a trusted Shalean
+                      Pro.
+                    </p>
+                    <ul className="mt-1 space-y-1.5 text-[11px] text-slate-500">
+                      <li className="flex items-start gap-1.5">
+                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <span>Dusting and wiping of surfaces</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <span>Floors vacuumed and mopped</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <span>Bathrooms and kitchen refreshed</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-3 text-sm text-slate-700">
+                    <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">
+                        {detailsBooking.cleaner
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          Your Shalean Pro
+                        </p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {detailsBooking.cleaner}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Fully vetted and covered by our quality guarantee.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600 mb-1">
+                        Before we arrive
+                      </p>
+                      <p className="text-[11px] text-amber-800">
+                        Please ensure access instructions and parking details are up to date.
+                        You can share extra notes from the manage booking screen.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 space-y-2 rounded-xl border border-slate-100 bg-slate-50/80 p-4 text-[11px] text-slate-500">
+                    <p>
+                      Booking reference{" "}
+                      <span className="font-semibold text-slate-800">
+                        {detailsBooking.id}
+                      </span>
+                      . A receipt will be emailed to you once this clean is completed.
+                    </p>
+                    <p>
+                      Need help? Reply to any email from us or message your pro directly from the
+                      upcoming tab.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-4 md:flex-row md:items-center md:justify-between">
+                <p className="text-[11px] text-slate-400">
+                  Need to change anything? You can reschedule, update the address, or cancel this
+                  clean up to 24 hours before the start time.
                 </p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setDetailsBooking(null)}
+                  >
+                    Back to bookings
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-sm"
+                    onClick={() => {
+                      if (!detailsBooking) return;
+                      setManageError(null);
+                      setManageDate("");
+                      setManageTime("");
+                      setManageAddress(detailsBooking.location || "");
+                      setManageService(detailsBooking.service || "");
+                      setManageBooking(detailsBooking);
+                      setDetailsBooking(null);
+                    }}
+                  >
+                    Manage booking
+                  </button>
+                </div>
               </div>
-            ))}
+            </div>
+          ) : (
+            <>
+              {activeTab === "upcoming" &&
+                (loadingBookings ? (
+                  <div className="bg-white rounded-2xl p-8 text-center border border-slate-100">
+                    <Calendar className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">
+                      Loading your upcoming cleans…
+                    </p>
+                  </div>
+                ) : upcomingCards.length > 0 ? (
+                  upcomingCards.map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      type="upcoming"
+                      onRescheduleOrCancel={(b) => {
+                        setManageBooking(b);
+                        setManageError(null);
+                        setManageDate("");
+                        setManageTime("");
+                        setManageAddress(b.location || "");
+                        setManageService(b.service || "");
+                      }}
+                      onViewDetails={(b) => setDetailsBooking(b)}
+                      onMessagePro={(b) => {
+                        setMessageBooking(b);
+                        setMessageText("");
+                        setMessageError(null);
+                      }}
+                    />
+                  ))
+                ) : (
+                  <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-200">
+                    <Calendar className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                    <h3 className="font-bold text-slate-900">No upcoming cleans</h3>
+                    <p className="text-slate-500 text-sm mb-6">
+                      Need a professional to sparkle your home?
+                    </p>
+                    <button
+                      onClick={onBookNew}
+                      className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all"
+                    >
+                      Book Now
+                    </button>
+                  </div>
+                ))}
+
+              {activeTab === "history" &&
+                (loadingBookings ? (
+                  <div className="bg-white rounded-2xl p-8 text-center border border-slate-100">
+                    <History className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">Loading your past bookings…</p>
+                  </div>
+                ) : pastCards.length > 0 ? (
+                  pastCards.map((booking) => (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      type="history"
+                      onViewDetails={(b) => setDetailsBooking(b)}
+                      onRate={(b) => {
+                        setRatingBooking(b);
+                        setRatingValue(b.rating || 5);
+                        setRatingComment("");
+                        setRatingError(null);
+                      }}
+                    />
+                  ))
+                ) : (
+                  <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-slate-200">
+                    <History className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                    <h3 className="font-bold text-slate-900">No past bookings yet</h3>
+                    <p className="text-slate-500 text-sm mb-6">
+                      Once you&apos;ve completed a clean, it will show here.
+                    </p>
+                  </div>
+                ))}
 
           {activeTab === "wallet" && (
             <div className="space-y-6">
@@ -1324,18 +1954,20 @@ export const CustomerDashboard = ({
               </div>
             </div>
           )}
+          </>
+        )}
         </div>
       </main>
       <AnimatePresence>
         {ratingBooking && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-10 bg-black/40 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6"
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[80vh] flex flex-col"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -1460,6 +2092,113 @@ export const CustomerDashboard = ({
                     {ratingSaving ? "Submitting..." : "Submit rating"}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {messageBooking && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-10 bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[80vh] flex flex-col"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                    Message your pro
+                  </p>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {messageBooking.service}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {messageBooking.date} · {messageBooking.time}
+                  </p>
+                </div>
+                <button
+                  className="text-slate-400 hover:text-slate-600"
+                  onClick={() => {
+                    setMessageBooking(null);
+                    setMessageError(null);
+                    setMessageText("");
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">
+                Your message
+              </label>
+              <textarea
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 min-h-[100px]"
+                placeholder="Ask about access, parking, special instructions, or anything else you need."
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+              />
+              <div className="mt-3 h-4 text-[11px] text-rose-600">
+                {messageError ? messageError : null}
+              </div>
+              <div className="mt-3 flex items-center justify-end gap-2">
+                <button
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    setMessageBooking(null);
+                    setMessageError(null);
+                    setMessageText("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={messageSaving || !messageText.trim()}
+                  onClick={async () => {
+                    if (!messageBooking || !messageText.trim()) return;
+                    try {
+                      setMessageSaving(true);
+                      setMessageError(null);
+                      const res = await fetch("/api/customer/messages", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          bookingId: messageBooking.bookingId,
+                          message: messageText.trim(),
+                        }),
+                      });
+                      if (!res.ok) {
+                        const body = (await res.json().catch(() => null)) as
+                          | { error?: string }
+                          | null;
+                        throw new Error(
+                          body?.error || "We could not send your message. Please try again.",
+                        );
+                      }
+                      setMessageBooking(null);
+                      setMessageText("");
+                    } catch (err) {
+                      console.error("Failed to send message", err);
+                      setMessageError(
+                        err instanceof Error
+                          ? err.message
+                          : "We could not send your message. Please try again.",
+                      );
+                    } finally {
+                      setMessageSaving(false);
+                    }
+                  }}
+                >
+                  {messageSaving ? "Sending…" : "Send message"}
+                </button>
               </div>
             </motion.div>
           </motion.div>
