@@ -420,15 +420,15 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
   return (
     <div className="pb-24">
       {/* Hero Section — full image background with left overlay, same width as navbar */}
-      <section className="mt-0">
+      <section className="mt-[-12px] sm:mt-0">
         <div className="max-w-7xl mx-auto px-6 w-full">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="relative rounded-none sm:rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[75vh] sm:min-h-[420px] lg:min-h-[500px]"
+            className="relative rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[35vh] sm:min-h-[420px] lg:min-h-[500px]"
           >
-            {/* Full-bleed background image — cover to fill evenly, anchored left/top to show people */}
+            {/* Full-bleed background image — visible on all breakpoints */}
             <img
               src="/hero-cleaning-team.png"
               alt="Professional cleaning team"
@@ -440,16 +440,16 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               aria-hidden
             />
 
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-stretch min-h-[75vh] sm:min-h-[420px] lg:min-h-[500px]">
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-stretch min-h-[35vh] sm:min-h-[420px] lg:min-h-[500px]">
               {/* Left — white text over dark overlay */}
-              <div className="flex flex-col justify-center px-5 py-8 sm:p-8 md:p-10 lg:p-12 lg:max-w-[55%] order-2 lg:order-1">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 sm:mb-6">
+              <div className="flex flex-col justify-start lg:justify-center px-4 pt-6 pb-6 sm:p-8 md:p-10 lg:p-12 lg:max-w-[55%] order-2 lg:order-1">
+                <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-3 sm:mb-6">
                   Custom home cleaning services
                 </h1>
-                <p className="text-sm sm:text-base md:text-lg text-white/95 leading-relaxed max-w-xl mb-6 sm:mb-8">
+                <p className="text-sm sm:text-base md:text-lg text-white/95 leading-relaxed max-w-xl mb-4 sm:mb-8">
                   Enjoy a spotless space with our trusted cleaning professionals. Eco-friendly, flexible, and always on time.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                <div className="flex flex-col sm:flex-row gap-2 md:gap-4">
                   <button
                     onClick={() => onNavigate("booking")}
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 font-semibold text-base md:text-lg px-6 md:px-8 py-3 md:py-4 text-white shadow-md transition-colors"
@@ -466,7 +466,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
               </div>
 
               {/* Right — image shows through; trust overlay bottom-right */}
-              <div className="relative flex-1 order-1 lg:order-2 min-h-[220px] sm:min-h-[260px] lg:min-h-0" />
+              <div className="relative flex-1 order-1 lg:order-2 min-h-[40px] sm:min-h-[260px] lg:min-h-0" />
             </div>
 
             {/* Trust badge — bottom right over image on tablet/desktop, hidden on very small screens */}
@@ -1369,7 +1369,12 @@ export const ShaleanWebsite = () => {
       )}
 
       {/* Sticky Mobile Book Button */}
-      {currentPage !== "booking" && currentPage !== "home" && !isDashboardPage && (
+      {currentPage !== "booking" &&
+        currentPage !== "home" &&
+        currentPage !== "about" &&
+        currentPage !== "services" &&
+        currentPage !== "pricing" &&
+        !isDashboardPage && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-40 flex gap-4">
           <Button
             onClick={() => navigate("booking")}
