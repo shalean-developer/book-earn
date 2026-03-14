@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { decodeRefParam } from "@/lib/referral";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,6 +9,7 @@ export async function POST(req: NextRequest) {
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
     const password = typeof body?.password === "string" ? String(body.password) : "";
+    const refParam = typeof body?.ref === "string" ? body.ref.trim() : "";
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -44,11 +46,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
     }
 
+    const referralCode = Buffer.from(email, "utf-8").toString("base64");
+    const referrerEmail = decodeRefParam(refParam);
+    let referredBy: string | null = null;
+    if (referrerEmail && referrerEmail !== email) {
+      const { data: referrer } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", referrerEmail)
+        .eq("role", "customer")
+        .maybeSingle();
+      if (referrer?.id) {
+        referredBy = referrer.id;
+      }
+    }
+
     const profileRow = {
       name,
       email,
       phone: phone || null,
       role: "customer" as const,
+      referral_code: referralCode,
+      referred_by: referredBy,
     };
 
     const { data: updated, error: updateError } = await supabase
@@ -87,6 +106,15 @@ export async function POST(req: NextRequest) {
           { status: 500 },
         );
       }
+    }
+
+    if (referredBy) {
+      await supabase.from("referrals").insert({
+        referrer_id: referredBy,
+        referee_email: email,
+        referee_id: profileId,
+        status: "pending",
+      });
     }
 
     return NextResponse.json(

@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useSession } from "next-auth/react";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
@@ -2852,6 +2853,7 @@ export const BookingSystem = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [bookingRef, setBookingRef] = useState("");
+  const [referralRef, setReferralRef] = useState<string | null>(null);
   const [redirectedFromDeepLink, setRedirectedFromDeepLink] = useState(false);
   const [cleaners, setCleaners] = useState<Cleaner[]>(INDIVIDUAL_CLEANERS);
   const [pricingState, setPricingState] = useState<ServicePricingState>({
@@ -2860,6 +2862,7 @@ export const BookingSystem = ({
     multipliersByService: {},
   });
   const [pricingReady, setPricingReady] = useState(false);
+  const { data: session, status } = useSession();
 
   const pricing = useCalcTotal(data, {
     basePriceOverride: pricingState.baseByService[data.service] ?? null,
@@ -2873,6 +2876,57 @@ export const BookingSystem = ({
       onStepChange(step);
     }
   }, [step, onStepChange]);
+
+  // When logged-in customer reaches step 3, pull their profile and prefill contact details
+  useEffect(() => {
+    if (
+      step !== 3 ||
+      status !== "authenticated" ||
+      (session?.user as { role?: string } | undefined)?.role !== "customer"
+    ) {
+      return;
+    }
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/customer/profile", {
+          signal: controller.signal,
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          profile?: {
+            name?: string | null;
+            email?: string | null;
+            phone?: string | null;
+            address_line1?: string | null;
+            address_city?: string | null;
+            address_region?: string | null;
+            address_postal_code?: string | null;
+          };
+        };
+        const profile = json.profile;
+        if (!profile) return;
+        const addressParts = [
+          profile.address_line1,
+          profile.address_city,
+          profile.address_region,
+          profile.address_postal_code,
+        ].filter(Boolean) as string[];
+        const address = addressParts.length ? addressParts.join(", ") : "";
+        setData((prev) => ({
+          ...prev,
+          ...(profile.name != null && profile.name !== "" && { name: profile.name }),
+          ...(profile.email != null && profile.email !== "" && { email: profile.email }),
+          ...(profile.phone != null && profile.phone !== "" && { phone: profile.phone }),
+          ...(address !== "" && { address }),
+        }));
+      } catch {
+        // ignore (e.g. aborted or network error)
+      }
+    })();
+    return () => controller.abort();
+  }, [step, status, session?.user]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2913,6 +2967,25 @@ export const BookingSystem = ({
             ...prev,
             service: id,
           }));
+        }
+      }
+      const ref = params.get("ref");
+      if (ref && typeof ref === "string" && ref.trim()) {
+        const trimmed = ref.trim();
+        setReferralRef(trimmed);
+        try {
+          window.localStorage.setItem("bookingReferralRef", trimmed);
+        } catch {
+          // ignore
+        }
+      } else {
+        try {
+          const stored = window.localStorage.getItem("bookingReferralRef");
+          if (stored && typeof stored === "string" && stored.trim()) {
+            setReferralRef(stored.trim());
+          }
+        } catch {
+          // ignore
         }
       }
     }
@@ -3122,6 +3195,7 @@ export const BookingSystem = ({
         body: JSON.stringify({
           booking: data,
           pricing,
+          ...(referralRef ? { ref: referralRef } : {}),
         }),
       });
 
@@ -3162,13 +3236,18 @@ export const BookingSystem = ({
           tipAmount: json.pricing?.tipAmount ?? prev.tipAmount,
         }));
       }
+      try {
+        window.localStorage.removeItem("bookingReferralRef");
+      } catch {
+        // ignore
+      }
       window.location.href = json.authorizationUrl;
     } catch {
       setPaymentError("Payment initialization failed. Please check your connection and try again.");
     } finally {
       setIsProcessing(false);
     }
-  }, [data, pricing, pricingReady]);
+  }, [data, pricing, pricingReady, referralRef]);
 
   return (
     <div className="w-full pt-4 pb-4 font-sans">

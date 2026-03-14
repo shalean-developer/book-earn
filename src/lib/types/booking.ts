@@ -84,5 +84,8 @@ export interface BookingRecord {
 
   // Legacy payment method column (e.g. "online")
   payment_method?: string;
+
+  /** Referral: referrer email when booking was made with ?ref= */
+  referred_by_email?: string | null;
 }
 

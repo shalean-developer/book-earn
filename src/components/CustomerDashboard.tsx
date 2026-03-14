@@ -25,9 +25,19 @@ import {
   ShieldCheck,
   Heart,
   Receipt,
+  Copy,
+  Mail,
+  Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 
 type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | string;
 
@@ -423,6 +433,11 @@ export const CustomerDashboard = ({
   const [messageText, setMessageText] = useState("");
   const [messageSaving, setMessageSaving] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+  const [walletBalanceCents, setWalletBalanceCents] = useState<number>(0);
+  const [walletBalanceFormatted, setWalletBalanceFormatted] = useState<string>("R0");
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [referralSheetOpen, setReferralSheetOpen] = useState(false);
+  const [referralCopyFeedback, setReferralCopyFeedback] = useState(false);
   const { data: session } = useSession();
 
   useEffect(() => {
@@ -538,6 +553,39 @@ export const CustomerDashboard = ({
     };
   }, []);
 
+  // Load wallet on mount so Payments tab cards (Next Payment, This Month, Credits) show real data
+  useEffect(() => {
+    let cancelled = false;
+    setWalletLoading(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/customer/wallet", { credentials: "include" });
+        if (cancelled) return;
+        if (!res.ok) {
+          setWalletBalanceCents(0);
+          setWalletBalanceFormatted("R0");
+          return;
+        }
+        const body = (await res.json()) as {
+          balanceCents?: number;
+          balanceFormatted?: string;
+        };
+        setWalletBalanceCents(body.balanceCents ?? 0);
+        setWalletBalanceFormatted(body.balanceFormatted ?? "R0");
+      } catch {
+        if (!cancelled) {
+          setWalletBalanceCents(0);
+          setWalletBalanceFormatted("R0");
+        }
+      } finally {
+        if (!cancelled) setWalletLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const upcomingCards = useMemo(() => {
     const upcoming = bookings.filter((b) =>
       ["pending", "confirmed"].includes(String(b.status || "").toLowerCase()),
@@ -580,6 +628,8 @@ export const CustomerDashboard = ({
     let total = 0;
     let count = 0;
     bookings.forEach((b) => {
+      const status = String(b.status || "").toLowerCase();
+      if (status !== "completed") return;
       const d = new Date(b.date || b.createdAt || "");
       if (Number.isNaN(d.getTime())) return;
       if (d.getMonth() === month && d.getFullYear() === year) {
@@ -890,28 +940,7 @@ export const CustomerDashboard = ({
 
           <div
             className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm cursor-pointer hover:border-blue-200 transition-all"
-            onClick={() => {
-              const name = customerName || "a friend";
-              const baseUrl =
-                typeof window !== "undefined" ? window.location.origin : "https://shalean.co.za";
-              const message = `${name} would love to refer you to Shalean – premium home and office cleaning.\n\nUse my link to book your first clean:\n${baseUrl}\n\nGive R100, get R100 off your next clean.`;
-              if (typeof navigator !== "undefined" && (navigator as any).share) {
-                (navigator as any)
-                  .share({
-                    title: "Shalean referral",
-                    text: message,
-                    url: baseUrl,
-                  })
-                  .catch(() => {});
-              } else {
-                const mailto = `mailto:?subject=${encodeURIComponent(
-                  "Clean with Shalean",
-                )}&body=${encodeURIComponent(message)}`;
-                if (typeof window !== "undefined") {
-                  window.location.href = mailto;
-                }
-              }
-            }}
+            onClick={() => setReferralSheetOpen(true)}
           >
             <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-4">
               <Heart className="w-5 h-5" />
@@ -921,6 +950,115 @@ export const CustomerDashboard = ({
               Give R100, get R100 for your next clean.
             </p>
           </div>
+
+          <Sheet open={referralSheetOpen} onOpenChange={setReferralSheetOpen}>
+            <SheetContent side="right" className="w-full sm:max-w-md">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Heart className="w-5 h-5 text-indigo-600" />
+                  Refer a Friend
+                </SheetTitle>
+                <SheetDescription>
+                  Share your link so friends can book their first clean. You both get R100 credit when they complete it.
+                </SheetDescription>
+              </SheetHeader>
+              {(() => {
+                const baseUrl =
+                  typeof window !== "undefined" ? window.location.origin : "https://shalean.co.za";
+                const refParam =
+                  customerEmail && typeof btoa !== "undefined"
+                    ? "?ref=" + encodeURIComponent(btoa(customerEmail.trim().toLowerCase()))
+                    : "";
+                const referralUrl = baseUrl + refParam;
+                const name = customerName || "a friend";
+                const message = `${name} would love to refer you to Shalean – premium home and office cleaning.\n\nUse my link to book your first clean:\n${referralUrl}\n\nGive R100, get R100 off your next clean.`;
+                const hasNativeShare = typeof navigator !== "undefined" && !!(navigator as any).share;
+                return (
+                  <div className="mt-6 space-y-6">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">
+                        Your referral link
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={referralUrl}
+                          className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof navigator === "undefined") return;
+                            navigator.clipboard.writeText(referralUrl).then(() => {
+                              setReferralCopyFeedback(true);
+                              setTimeout(() => setReferralCopyFeedback(false), 2000);
+                            });
+                          }}
+                          className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors"
+                        >
+                          <Copy className="w-4 h-4" />
+                          {referralCopyFeedback ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                        Share via
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window === "undefined") return;
+                            navigator.clipboard.writeText(referralUrl);
+                            const mailto = `mailto:?subject=${encodeURIComponent(
+                              "Clean with Shalean",
+                            )}&body=${encodeURIComponent(message)}`;
+                            window.location.href = mailto;
+                          }}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors"
+                        >
+                          <Mail className="w-4 h-4" />
+                          Email
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window === "undefined") return;
+                            const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+                            window.open(waUrl, "_blank", "noopener,noreferrer");
+                          }}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          WhatsApp
+                        </button>
+                        {hasNativeShare && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              (navigator as any)
+                                .share({
+                                  title: "Shalean referral",
+                                  text: message,
+                                  url: referralUrl,
+                                })
+                                .catch(() => {});
+                            }}
+                            className="col-span-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            Share (app or more options)
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </SheetContent>
+          </Sheet>
 
           <div
             className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm cursor-pointer hover:border-blue-200 transition-all"
@@ -1608,11 +1746,11 @@ export const CustomerDashboard = ({
                         Credits & Rewards
                       </p>
                       <p className="text-xl font-black text-emerald-600 mb-1">
-                        R120
+                        {walletLoading ? "…" : walletBalanceFormatted}
                       </p>
                       <p className="text-xs text-slate-500 flex items-center gap-1">
                         <Heart className="w-3 h-3 text-rose-400" />
-                        From referrals
+                        Refer friends to earn R100 credit
                       </p>
                     </div>
                   </div>
@@ -1770,6 +1908,20 @@ export const CustomerDashboard = ({
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-500 mb-1">
+                        Email
+                      </label>
+                      <input
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-600 cursor-not-allowed"
+                        readOnly
+                        value={profile?.email ?? session?.user?.email ?? ""}
+                        aria-label="Account email (read-only)"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Account email cannot be changed here.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">
                         Mobile number
                       </label>
                       <input
@@ -1838,10 +1990,10 @@ export const CustomerDashboard = ({
                               phone: "",
                               preferred_contact_method: null,
                               timezone: null,
-                              address_line1: "",
-                              address_city: "",
-                              address_region: "",
-                              address_postal_code: "",
+                              address_line1: null,
+                              address_city: null,
+                              address_region: null,
+                              address_postal_code: null,
                             }),
                             timezone: e.target.value,
                           }))
@@ -1854,11 +2006,142 @@ export const CustomerDashboard = ({
                     </div>
                   </div>
 
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold text-slate-500 mb-3">
+                      Address
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          Street address
+                        </label>
+                        <input
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 bg-slate-50"
+                          placeholder="e.g. 12 Beach Rd"
+                          value={profile?.address_line1 ?? ""}
+                          onChange={(e) =>
+                            setProfile((prev) => ({
+                              ...(prev ?? {
+                                name: "",
+                                email: session?.user?.email ?? null,
+                                phone: "",
+                                preferred_contact_method: null,
+                                timezone: null,
+                                address_line1: null,
+                                address_city: null,
+                                address_region: null,
+                                address_postal_code: null,
+                              }),
+                              address_line1: e.target.value || null,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          Suburb / Region
+                        </label>
+                        <input
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 bg-slate-50"
+                          placeholder="e.g. Sea Point"
+                          value={profile?.address_region ?? ""}
+                          onChange={(e) =>
+                            setProfile((prev) => ({
+                              ...(prev ?? {
+                                name: "",
+                                email: session?.user?.email ?? null,
+                                phone: "",
+                                preferred_contact_method: null,
+                                timezone: null,
+                                address_line1: null,
+                                address_city: null,
+                                address_region: null,
+                                address_postal_code: null,
+                              }),
+                              address_region: e.target.value || null,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          City
+                        </label>
+                        <input
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 bg-slate-50"
+                          placeholder="e.g. Cape Town"
+                          value={profile?.address_city ?? ""}
+                          onChange={(e) =>
+                            setProfile((prev) => ({
+                              ...(prev ?? {
+                                name: "",
+                                email: session?.user?.email ?? null,
+                                phone: "",
+                                preferred_contact_method: null,
+                                timezone: null,
+                                address_line1: null,
+                                address_city: null,
+                                address_region: null,
+                                address_postal_code: null,
+                              }),
+                              address_city: e.target.value || null,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">
+                          Postal code
+                        </label>
+                        <input
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 bg-slate-50"
+                          placeholder="e.g. 8005"
+                          value={profile?.address_postal_code ?? ""}
+                          onChange={(e) =>
+                            setProfile((prev) => ({
+                              ...(prev ?? {
+                                name: "",
+                                email: session?.user?.email ?? null,
+                                phone: "",
+                                preferred_contact_method: null,
+                                timezone: null,
+                                address_line1: null,
+                                address_city: null,
+                                address_region: null,
+                                address_postal_code: null,
+                              }),
+                              address_postal_code: e.target.value || null,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="mt-6 flex items-center justify-between gap-3">
                     <div className="text-xs text-rose-600 h-4">
                       {profileError ? profileError : null}
                     </div>
-                    <button className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      disabled={profileSaving}
+                      onClick={async () => {
+                        setProfileError(null);
+                        try {
+                          const res = await fetch("/api/customer/profile", {
+                            credentials: "include",
+                          });
+                          if (!res.ok) return;
+                          const body = (await res.json()) as {
+                            profile?: CustomerProfile;
+                          };
+                          if (body.profile) setProfile(body.profile);
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                    >
                       Cancel
                     </button>
                     <button
@@ -1880,6 +2163,11 @@ export const CustomerDashboard = ({
                               preferred_contact_method:
                                 profile.preferred_contact_method,
                               timezone: profile.timezone,
+                              address_line1: profile.address_line1 ?? undefined,
+                              address_city: profile.address_city ?? undefined,
+                              address_region: profile.address_region ?? undefined,
+                              address_postal_code:
+                                profile.address_postal_code ?? undefined,
                             }),
                           });
                           if (!res.ok) {
@@ -1937,7 +2225,15 @@ export const CustomerDashboard = ({
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mb-2">
-                        12 Beach Rd, Sea Point, Cape Town, 8005
+                        {[
+                          profile?.address_line1,
+                          profile?.address_region,
+                          profile?.address_city,
+                          profile?.address_postal_code,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") ||
+                          "Add your address in Profile Settings above."}
                       </p>
                       <div className="flex flex-wrap gap-3 text-[11px] text-slate-600">
                         <span className="inline-flex items-center gap-1">

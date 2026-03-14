@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import type { BookingRecord, PricingBreakdown } from "@/lib/types/booking";
 import { computePricingForBooking } from "@/lib/pricing";
+import { decodeRefParam } from "@/lib/referral";
 
 export const runtime = "nodejs";
 
@@ -38,7 +39,8 @@ function mapToBookingRecord(
   booking: BookingFormPayload,
   pricing: PricingBreakdown,
   reference: string,
-  currency: string
+  currency: string,
+  referredByEmail: string | null
 ): BookingRecord {
   const legacyBookingRef = reference.slice(0, 20);
 
@@ -94,6 +96,8 @@ function mapToBookingRecord(
     paystack_transaction_id: null,
     paystack_status: null,
     paystack_raw_response: null,
+
+    referred_by_email: referredByEmail || null,
   };
 }
 
@@ -115,6 +119,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const booking = body.booking as BookingFormPayload | undefined;
     const clientPricing = body.pricing as PricingBreakdown | undefined;
+    const refParam = typeof body.ref === "string" ? body.ref.trim() : "";
+    const referredByEmail = decodeRefParam(refParam);
 
     if (!booking) {
       return NextResponse.json(
@@ -200,7 +206,8 @@ export async function POST(req: NextRequest) {
       booking,
       pricing,
       reference,
-      currency
+      currency,
+      referredByEmail
     );
 
     const { error: dbError } = await supabase
