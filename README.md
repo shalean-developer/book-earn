@@ -108,6 +108,22 @@ This project uses Supabase for database and backend services. To set up Supabase
      const supabase = await createClient()
      ```
 
+## Vercel deployment (login / auth)
+
+If you see **"Server error"** or **"There is a problem with the server configuration"** at `/api/auth/error` when logging in on Vercel, the auth API is missing required environment variables.
+
+In **Vercel → Your project → Settings → Environment Variables**, set:
+
+| Variable | Required | Notes |
+|----------|----------|--------|
+| `NEXTAUTH_SECRET` | **Yes** | Any long random string (e.g. `openssl rand -base64 32`). Required for JWT signing in production. |
+| `NEXTAUTH_URL` | **Yes** | Your app URL, e.g. `https://book-earn.vercel.app` (no trailing slash). |
+| `NEXT_PUBLIC_SUPABASE_URL` | **Yes** | Supabase project URL. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Yes** | Supabase anon/public key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Yes** | Supabase service role key (Settings → API in Supabase). |
+
+After adding or changing variables, **redeploy** the project (Deployments → … → Redeploy). If something is still missing, check the **Vercel → Logs** or **Functions** tab for the exact error message.
+
 ## Payments (Paystack) Setup
 
 This project uses Paystack in **test mode** to securely process booking payments.

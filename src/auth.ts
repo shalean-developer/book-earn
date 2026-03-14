@@ -4,9 +4,19 @@ import { createClient } from "@supabase/supabase-js";
 
 type Role = "admin" | "customer" | "cleaner";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value?.trim()) {
+    throw new Error(
+      `Auth config: missing required env var "${name}". Set it in Vercel (Settings → Environment Variables) and redeploy.`
+    );
+  }
+  return value;
+}
+
+const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+const supabaseAnonKey = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+const supabaseServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey);
 const supabaseService = createClient(supabaseUrl, supabaseServiceRoleKey);
