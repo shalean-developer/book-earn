@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPin, User, Smartphone, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { User, Smartphone, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [name, setName] = useState("");
@@ -225,6 +225,24 @@ export default function SignupPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
+          <div className="max-w-4xl w-full grid md:grid-cols-[1.2fr,1fr] gap-10 bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+            <div className="p-8 md:p-10 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   );
 }
 

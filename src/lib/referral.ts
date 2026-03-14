@@ -39,7 +39,7 @@ export async function processReferralCompletion(
     return { granted: false };
   }
 
-  const refereeEmail = (booking.customer_email || booking.email) as string | undefined;
+  const refereeEmail = booking.customer_email as string | undefined;
   const referrerEmail = booking.referred_by_email as string | null | undefined;
   if (!refereeEmail || !referrerEmail) {
     return { granted: false };
