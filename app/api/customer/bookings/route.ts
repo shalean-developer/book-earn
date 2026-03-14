@@ -22,6 +22,8 @@ export type CustomerBooking = {
   extras: string[];
   cleanerId: string | null;
   cleanerName: string | null;
+  /** Estimated duration in minutes (min 3.5h). */
+  estimatedDurationMinutes: number | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -42,7 +44,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("bookings")
       .select(
-        "id, reference, service, status, total_amount, currency, date, time, address, created_at, bedrooms, bathrooms, extra_rooms, instructions, extras, cleaner_id, booking_ratings(rating, comment, rater_type)"
+        "id, reference, service, status, total_amount, currency, date, time, address, created_at, bedrooms, bathrooms, extra_rooms, instructions, extras, cleaner_id, estimated_duration_minutes, booking_ratings(rating, comment, rater_type)"
       )
       .eq("email", email.toLowerCase())
       .order("created_at", { ascending: false })
@@ -79,6 +81,7 @@ export async function GET(req: NextRequest) {
       instructions?: string | null;
       extras?: string[] | null;
       cleaner_id?: string | null;
+      estimated_duration_minutes?: number | null;
       booking_ratings?:
         | null
         | {
@@ -155,6 +158,10 @@ export async function GET(req: NextRequest) {
         cleanerName: row.cleaner_id
           ? cleanerNameById[row.cleaner_id] ?? null
           : null,
+        estimatedDurationMinutes:
+          row.estimated_duration_minutes != null
+            ? Number(row.estimated_duration_minutes)
+            : null,
       };
     });
 

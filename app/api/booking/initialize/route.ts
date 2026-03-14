@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import type { BookingRecord, PricingBreakdown } from "@/lib/types/booking";
 import { computePricingForBooking } from "@/lib/pricing";
+import { computeEstimatedDurationMinutes } from "@/lib/duration";
 import { decodeRefParam } from "@/lib/referral";
 
 export const runtime = "nodejs";
@@ -40,7 +41,8 @@ function mapToBookingRecord(
   pricing: PricingBreakdown,
   reference: string,
   currency: string,
-  referredByEmail: string | null
+  referredByEmail: string | null,
+  estimatedDurationMinutes: number
 ): BookingRecord {
   const legacyBookingRef = reference.slice(0, 20);
 
@@ -81,11 +83,15 @@ function mapToBookingRecord(
     instructions: booking.instructions,
     apartment_unit: booking.apartmentUnit || "",
 
+    estimated_duration_minutes: estimatedDurationMinutes,
+
     base_amount: pricing.basePrice,
     discount_amount: pricing.discountAmount,
     tip_amount: pricing.tipAmount,
     subtotal_amount: pricing.subtotal,
     total_amount: pricing.total,
+    service_fee_amount: pricing.serviceFee ?? 0,
+    equipment_charge_amount: pricing.equipmentCharge ?? 0,
     subtotal: pricing.subtotal,
     total: pricing.total,
     currency,
@@ -202,12 +208,28 @@ export async function POST(req: NextRequest) {
       cleaningFrequency: booking.cleaningFrequency,
     });
 
+    const estimatedDurationMinutes = computeEstimatedDurationMinutes({
+      service: booking.service,
+      bedrooms: booking.bedrooms,
+      bathrooms: booking.bathrooms,
+      extraRooms: booking.extraRooms,
+      propertyType: booking.propertyType,
+      officeSize: booking.officeSize,
+      privateOffices: booking.privateOffices,
+      meetingRooms: booking.meetingRooms,
+      carpetedRooms: booking.carpetedRooms,
+      looseRugs: booking.looseRugs,
+      carpetExtraCleaners: booking.carpetExtraCleaners,
+      extras: booking.extras,
+    });
+
     const bookingRecord = mapToBookingRecord(
       booking,
       pricing,
       reference,
       currency,
-      referredByEmail
+      referredByEmail,
+      estimatedDurationMinutes
     );
 
     const { error: dbError } = await supabase
@@ -274,7 +296,10 @@ export async function POST(req: NextRequest) {
       {
         authorizationUrl: authorizationUrl as string,
         reference,
-        pricing,
+        pricing: {
+          ...pricing,
+          estimatedDurationMinutes,
+        },
       },
       { status: 200 }
     );

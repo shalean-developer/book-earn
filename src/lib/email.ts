@@ -1,5 +1,6 @@
 import { resend } from "@/lib/resend";
 import type { BookingRecord, PricingBreakdown } from "@/lib/types/booking";
+import { formatEstimatedDuration } from "@/lib/duration";
 
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "Bookings <no-reply@example.com>";
@@ -157,6 +158,14 @@ function buildCustomerEmailHtml(
             }
             ${buildKeyValueRow("Date", escapeHtml(booking.date))}
             ${buildKeyValueRow("Time", escapeHtml(booking.time))}
+            ${
+              booking.estimated_duration_minutes != null
+                ? buildKeyValueRow(
+                    "Estimated duration",
+                    formatEstimatedDuration(Number(booking.estimated_duration_minutes))
+                  )
+                : ""
+            }
           </tbody>
         </table>
       </td>
@@ -323,6 +332,14 @@ function buildAdminEmailHtml(
   scheduleRows.push(
     buildKeyValueRow("Time", escapeHtml(booking.time || ""))
   );
+  if (booking.estimated_duration_minutes != null) {
+    scheduleRows.push(
+      buildKeyValueRow(
+        "Estimated duration",
+        formatEstimatedDuration(Number(booking.estimated_duration_minutes))
+      )
+    );
+  }
 
   const propertyRows: string[] = [];
   const serviceLower = (booking.service || "").toLowerCase();

@@ -10,6 +10,7 @@ export type AdminBookingSummary = {
   totalAmount: number;
   date: string;
   time: string;
+  estimatedDurationMinutes: number | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("bookings")
       .select(
-        "id, name, service, cleaner_id, status, total_amount, date, time, created_at",
+        "id, name, service, cleaner_id, status, total_amount, date, time, created_at, estimated_duration_minutes",
         { count: "exact" }
       )
       .order("created_at", { ascending: false })
@@ -98,6 +99,10 @@ export async function GET(req: NextRequest) {
         totalAmount: row.total_amount ?? 0,
         date: row.date ?? "",
         time: row.time ?? "",
+        estimatedDurationMinutes:
+          row.estimated_duration_minutes != null
+            ? Number(row.estimated_duration_minutes)
+            : null,
       };
     });
 

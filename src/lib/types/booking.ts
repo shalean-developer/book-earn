@@ -17,6 +17,8 @@ export interface PricingBreakdown {
   equipmentCharge: number;
   subtotal: number;
   total: number;
+  /** Estimated duration in minutes (min 3.5h), when computed. */
+  estimatedDurationMinutes?: number;
 }
 
 // Shape of the booking row we insert into the Supabase `bookings` table.
@@ -58,12 +60,19 @@ export interface BookingRecord {
   time: string;
   instructions: string;
 
+  // Estimated duration (minutes); minimum 3.5 hours
+  estimated_duration_minutes?: number | null;
+
   // Pricing
   base_amount: number;
   discount_amount: number;
   tip_amount: number;
   subtotal_amount: number;
   total_amount: number;
+  /** Per-booking service fee (excluded from cleaner earnings base). */
+  service_fee_amount?: number | null;
+  /** Equipment charge (excluded from cleaner earnings). */
+  equipment_charge_amount?: number | null;
   currency: string;
 
   // Payment / Paystack

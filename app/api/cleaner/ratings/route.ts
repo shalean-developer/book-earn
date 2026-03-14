@@ -4,14 +4,16 @@ import { createClient } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
 
+/**
+ * POST /api/cleaner/ratings
+ * Cleaner rates the customer after job is completed.
+ * Body: { bookingId: string, rating: number (1-5), comment?: string }
+ */
 export async function POST(req: NextRequest) {
   try {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    const tokenData = token as (null | { role?: unknown; email?: unknown });
-    const role = typeof tokenData?.role === "string" ? tokenData.role : undefined;
-    const email = typeof tokenData?.email === "string" ? tokenData.email : undefined;
-
-    if (!token || role !== "customer" || !email) {
+    const t = token as (null | { role?: string; phone?: string });
+    if (!token || t?.role !== "cleaner" || !t?.phone) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -43,14 +45,26 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createClient();
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "cleaner")
+      .eq("phone", t.phone)
+      .single();
+
+    const cleanerId = profile?.id as string | undefined;
+    if (!cleanerId) {
+      return NextResponse.json({ error: "Cleaner profile not found" }, { status: 403 });
+    }
+
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, email, status")
+      .select("id, cleaner_id, status")
       .eq("id", bookingId)
       .maybeSingle();
 
     if (bookingError) {
-      console.error("Error verifying booking for rating:", bookingError);
+      console.error("Error verifying booking for cleaner rating:", bookingError);
       return NextResponse.json(
         { error: "Failed to verify booking" },
         { status: 500 },
@@ -59,19 +73,15 @@ export async function POST(req: NextRequest) {
     if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
-    const bookingEmail =
-      typeof booking.email === "string" ? booking.email.toLowerCase() : "";
-    if (!bookingEmail || bookingEmail !== email.toLowerCase()) {
+    if (booking.cleaner_id !== cleanerId) {
       return NextResponse.json(
-        { error: "You can only rate your own bookings" },
+        { error: "You can only rate jobs assigned to you" },
         { status: 403 },
       );
     }
 
     const status =
-      typeof booking.status === "string"
-        ? booking.status.toLowerCase()
-        : undefined;
+      typeof booking.status === "string" ? booking.status.toLowerCase() : "";
     if (status !== "completed") {
       return NextResponse.json(
         { error: "You can only rate after the job is completed" },
@@ -84,7 +94,7 @@ export async function POST(req: NextRequest) {
       .upsert(
         {
           booking_id: bookingId,
-          rater_type: "customer",
+          rater_type: "cleaner",
           rating: Math.round(ratingNumber),
           comment,
         },
@@ -94,7 +104,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (ratingError) {
-      console.error("Error saving customer rating:", ratingError);
+      console.error("Error saving cleaner rating:", ratingError);
       return NextResponse.json(
         { error: "Failed to save rating" },
         { status: 500 },
@@ -113,11 +123,10 @@ export async function POST(req: NextRequest) {
       { status: 200 },
     );
   } catch (err) {
-    console.error("Unexpected error in customer ratings POST:", err);
+    console.error("Unexpected error in cleaner ratings POST:", err);
     return NextResponse.json(
       { error: "Unexpected error saving rating" },
       { status: 500 },
     );
   }
 }
-

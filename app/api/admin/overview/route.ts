@@ -17,6 +17,7 @@ type RecentBooking = {
   totalAmount: number;
   date: string;
   time: string;
+  estimatedDurationMinutes: number | null;
 };
 
 type ServiceDistributionItem = {
@@ -38,7 +39,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from("bookings")
       .select(
-        "id, name, service, cleaner_id, status, total_amount, date, time, created_at"
+        "id, name, service, cleaner_id, status, total_amount, date, time, created_at, estimated_duration_minutes"
       )
       .order("created_at", { ascending: false })
       .limit(50);
@@ -164,6 +165,10 @@ export async function GET() {
         totalAmount: row.total_amount ?? 0,
         date: row.date ?? "",
         time: row.time ?? "",
+        estimatedDurationMinutes:
+          row.estimated_duration_minutes != null
+            ? Number(row.estimated_duration_minutes)
+            : null,
       };
     });
 

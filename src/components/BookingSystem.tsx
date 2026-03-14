@@ -41,6 +41,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useSession } from "next-auth/react";
+import { computeEstimatedDurationMinutes, formatEstimatedDuration } from "@/lib/duration";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
@@ -598,6 +599,7 @@ function useCalcTotal(
   discountAmount: number;
   subtotal: number;
   total: number;
+  estimatedDurationMinutes: number;
 } {
   return useMemo(() => {
     const pricingReady = overrides.pricingReady;
@@ -703,6 +705,21 @@ function useCalcTotal(
 
     const subtotal = subtotalBeforeDiscount;
 
+    const estimatedDurationMinutes = computeEstimatedDurationMinutes({
+      service: data.service,
+      bedrooms: data.bedrooms,
+      bathrooms: data.bathrooms,
+      extraRooms: data.extraRooms,
+      propertyType: data.propertyType,
+      officeSize: data.officeSize,
+      privateOffices: data.privateOffices,
+      meetingRooms: data.meetingRooms,
+      carpetedRooms: data.carpetedRooms,
+      looseRugs: data.looseRugs,
+      carpetExtraCleaners: data.carpetExtraCleaners,
+      extras: data.extras,
+    });
+
     return {
       basePrice,
       bedroomAdd,
@@ -719,6 +736,7 @@ function useCalcTotal(
       discountAmount,
       subtotal,
       total: Math.max(0, subtotal - discountAmount) + tipAmount,
+      estimatedDurationMinutes,
     };
   }, [data, overrides]);
 }
@@ -3403,6 +3421,12 @@ export const BookingSystem = ({
                     {data.time && data.date && ` · ${data.time}`}
                   </span>
                 </div>
+                <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
+                  <span className="opacity-50">Estimated duration</span>
+                  <span className="font-bold">
+                    {formatEstimatedDuration(pricing.estimatedDurationMinutes ?? 210)}
+                  </span>
+                </div>
                 {data.propertyType === "office" && (
                   <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
                     <span className="opacity-50">Office details</span>
@@ -3556,6 +3580,12 @@ export const BookingSystem = ({
                       <span className="font-bold text-right">
                         {data.date ? formatDate(data.date) : "Not set"}
                         {data.time && data.date && ` · ${data.time}`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-slate-200">
+                      <span className="opacity-60">Estimated duration</span>
+                      <span className="font-bold">
+                        {formatEstimatedDuration(pricing.estimatedDurationMinutes ?? 210)}
                       </span>
                     </div>
                     {data.propertyType === "office" && (

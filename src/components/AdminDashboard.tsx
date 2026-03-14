@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import AdminPricingManager from "./AdminPricingManager";
+import { formatEstimatedDuration } from "@/lib/duration";
 
 type AdminTab =
   | "overview"
@@ -53,6 +54,7 @@ type OverviewRecentBooking = {
   totalAmount: number;
   date: string;
   time: string;
+  estimatedDurationMinutes: number | null;
 };
 
 type BookingsListBooking = OverviewRecentBooking;
@@ -1779,6 +1781,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                         <th className="px-6 py-4">Cleaner</th>
                         <th className="px-6 py-4">Date</th>
                         <th className="px-6 py-4">Time</th>
+                        <th className="px-6 py-4">Est. duration</th>
                         <th className="px-6 py-4">Amount</th>
                         <th className="px-6 py-4">Status</th>
                         <th className="px-6 py-4" />
@@ -1788,7 +1791,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       {bookingsListLoading ? (
                         <tr>
                           <td
-                            colSpan={9}
+                            colSpan={10}
                             className="px-6 py-8 text-center text-xs text-slate-500"
                           >
                             Loading bookings...
@@ -1797,7 +1800,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       ) : filteredBookingsList.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={9}
+                            colSpan={10}
                             className="px-6 py-8 text-center text-xs text-slate-500"
                           >
                             No bookings found. Create a booking or adjust filters.
@@ -1818,6 +1821,11 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                             </td>
                             <td className="px-6 py-4 text-slate-500">{booking.date}</td>
                             <td className="px-6 py-4 text-slate-500">{booking.time}</td>
+                            <td className="px-6 py-4 text-slate-600">
+                              {booking.estimatedDurationMinutes != null
+                                ? formatEstimatedDuration(booking.estimatedDurationMinutes)
+                                : "—"}
+                            </td>
                             <td className="px-6 py-4 font-semibold text-slate-900">
                               R{booking.totalAmount.toLocaleString("en-ZA")}
                             </td>
@@ -2603,6 +2611,14 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span className="text-slate-500">Est. duration</span>
+                          <span>
+                            {fallback.estimatedDurationMinutes != null
+                              ? formatEstimatedDuration(fallback.estimatedDurationMinutes)
+                              : "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-slate-500">Amount</span>
                           <span className="font-semibold">
                             R{fallback.totalAmount.toLocaleString("en-ZA")}
@@ -2655,6 +2671,14 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                     <span>
                       {fullBooking.date}
                       {fullBooking.time ? `, ${fullBooking.time}` : ""}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Est. duration</span>
+                    <span>
+                      {fullBooking.estimated_duration_minutes != null
+                        ? formatEstimatedDuration(Number(fullBooking.estimated_duration_minutes))
+                        : "—"}
                     </span>
                   </div>
                   <div className="flex justify-between">

@@ -38,6 +38,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { formatEstimatedDuration } from "@/lib/duration";
 
 type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | string;
 
@@ -61,6 +62,7 @@ type CustomerBooking = {
   extras?: string[];
   cleanerId?: string | null;
   cleanerName?: string | null;
+  estimatedDurationMinutes?: number | null;
 };
 
 type CustomerTab = "upcoming" | "history" | "settings" | "wallet";
@@ -102,6 +104,7 @@ interface Booking {
   extraRooms?: number | null;
   notes?: string | null;
   extras?: string[];
+  estimatedDurationMinutes?: number | null;
 }
 
 function formatCurrency(amount: number, currency?: string | null) {
@@ -179,6 +182,7 @@ function mapBookingToCard(b: CustomerBooking): Booking {
     extraRooms: b.extraRooms ?? null,
     notes: b.instructions ?? null,
     extras: Array.isArray(b.extras) ? b.extras : [],
+    estimatedDurationMinutes: b.estimatedDurationMinutes ?? null,
   };
 }
 
@@ -261,7 +265,18 @@ const BookingCard = ({
             <Clock className="w-4 h-4 text-blue-500" /> {booking.time}
           </div>
         </div>
-        <div className="col-span-2">
+        <div>
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">
+            Est. duration
+          </p>
+          <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm">
+            <Clock className="w-4 h-4 text-blue-500" />{" "}
+            {booking.estimatedDurationMinutes != null
+              ? formatEstimatedDuration(booking.estimatedDurationMinutes)
+              : "3h 30min"}
+          </div>
+        </div>
+        <div>
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">
             Pro Cleaner
           </p>
