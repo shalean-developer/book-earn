@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { createClient } from "@/lib/supabase-server";
+import { formatBookingCode } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,7 @@ export type CustomerNotification = {
   title: string;
   description: string;
   time: string;
+  read: boolean;
   type: "upcoming" | "booking_update" | "payment" | "other";
 };
 
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
 
     const notifications: CustomerNotification[] = rows.map((row) => {
       const bookingId = row.id?.toString() ?? "booking";
+      const ref = formatBookingCode(bookingId);
       const service = row.service ?? "Cleaning";
       const status = (row.status ?? "pending") as string;
       const amount = Number(row.total_amount ?? 0);
@@ -56,23 +59,23 @@ export async function GET(req: NextRequest) {
       if (status === "pending") {
         title = "We received your booking request";
         type = "booking_update";
-        description = `Your ${service.toLowerCase()} booking (${bookingId}) is pending confirmation.`;
+        description = `Your ${service.toLowerCase()} booking (${ref}) is pending confirmation.`;
       } else if (status === "confirmed") {
         title = "Your clean is confirmed";
         type = "upcoming";
-        description = `Your ${service.toLowerCase()} booking (${bookingId}) is confirmed.`;
+        description = `Your ${service.toLowerCase()} booking (${ref}) is confirmed.`;
       } else if (status === "completed") {
         title = "Thanks for booking with Shalean";
         type = "booking_update";
-        description = `Your ${service.toLowerCase()} booking (${bookingId}) is completed. Rate your clean from the Past Bookings tab.`;
+        description = `Your ${service.toLowerCase()} booking (${ref}) is completed. Rate your clean from the Past Bookings tab.`;
       } else if (status === "failed" || status === "cancelled") {
         title = "Booking update";
         type = "booking_update";
-        description = `Your ${service.toLowerCase()} booking (${bookingId}) was ${status}.`;
+        description = `Your ${service.toLowerCase()} booking (${ref}) was ${status}.`;
       } else {
         title = "Booking update";
         type = "other";
-        description = `We have an update on your booking (${bookingId}).`;
+        description = `We have an update on your booking (${ref}).`;
       }
 
       if (amount > 0 && status === "confirmed") {
@@ -99,6 +102,7 @@ export async function GET(req: NextRequest) {
         title,
         description,
         time: timeLabel,
+        read: false,
         type,
       };
     });

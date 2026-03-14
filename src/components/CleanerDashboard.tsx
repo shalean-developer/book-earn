@@ -1,6 +1,7 @@
  "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import {
   Calendar,
@@ -18,6 +19,7 @@ import {
   Sparkles,
   X,
   Info,
+  Bell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -32,6 +34,15 @@ type ApiJob = {
   status: string | null;
   totalAmount: number;
   date: string;
+};
+
+type CleanerNotification = {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+  read: boolean;
+  type: "job_assigned" | "job_confirmed" | "job_update" | "other";
 };
 
 type CleanerDashboardPayload = {
@@ -152,6 +163,10 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
   const [payload, setPayload] = useState<CleanerDashboardPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<CleanerNotification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -185,6 +200,49 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
       cancelled = true;
     };
   }, [status]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    let cancelled = false;
+    const loadNotifications = async () => {
+      setNotificationsLoading(true);
+      setNotificationsError(null);
+      try {
+        const res = await fetch("/api/cleaner/notifications");
+        if (!res.ok) throw new Error("Failed to load notifications");
+        const data: { notifications?: CleanerNotification[] } = await res.json();
+        if (!cancelled)
+          setNotifications(
+            (data.notifications ?? []).map((n) => ({ ...n, read: n.read ?? false }))
+          );
+      } catch (err) {
+        if (!cancelled)
+          setNotificationsError("We couldn't load notifications.");
+      } finally {
+        if (!cancelled) setNotificationsLoading(false);
+      }
+    };
+    loadNotifications();
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
+  const unreadNotifications = notifications.filter((n) => !n.read).length;
+  const handleToggleNotifications = () => {
+    setNotificationsOpen((open) => !open);
+    setNotifications((current) =>
+      current.map((n) => (n.read ? n : { ...n, read: true }))
+    );
+  };
+  const handleMarkAllRead = () => {
+    setNotifications((current) => current.map((n) => ({ ...n, read: true })));
+  };
+  const handleMarkOneRead = (id: string) => {
+    setNotifications((current) =>
+      current.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
 
   if (status === "loading") {
     return (
@@ -238,6 +296,13 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
       <header className="bg-white px-6 pt-12 pb-6 sticky top-0 z-50 border-b border-slate-200">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
+            <Image
+              src="/logo.png"
+              alt="Shalean"
+              width={40}
+              height={40}
+              className="h-10 w-10 object-contain flex-shrink-0"
+            />
             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 font-bold border border-emerald-200">
               {displayName
                 .split(" ")
@@ -259,12 +324,112 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
               </div>
             </div>
           </div>
-          <button
-            onClick={onBack}
-            className="p-2 bg-slate-100 text-slate-400 rounded-full"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleToggleNotifications}
+                className="p-2 text-slate-400 hover:text-blue-600 relative rounded-full hover:bg-slate-100 transition-colors"
+                aria-label={
+                  unreadNotifications
+                    ? `You have ${unreadNotifications} unread notifications`
+                    : "Notifications"
+                }
+              >
+                <Bell className="w-5 h-5" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
+                )}
+              </button>
+              {notificationsOpen && (
+                <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200 rounded-2xl shadow-lg z-20">
+                  <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Notifications</p>
+                      <p className="text-[11px] text-slate-400">
+                        {notificationsLoading
+                          ? "Loading…"
+                          : notificationsError
+                          ? notificationsError
+                          : unreadNotifications > 0
+                          ? `${unreadNotifications} new ${unreadNotifications === 1 ? "alert" : "alerts"}`
+                          : "You're all caught up"}
+                      </p>
+                    </div>
+                    {!notificationsLoading &&
+                      !notificationsError &&
+                      notifications.some((n) => !n.read) && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllRead}
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <div className="px-4 py-6 text-center text-xs text-slate-500">
+                        Loading notifications…
+                      </div>
+                    ) : notificationsError ? (
+                      <div className="px-4 py-6 text-center text-xs text-rose-500">
+                        {notificationsError}
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-slate-500">
+                        No notifications yet.
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-slate-100">
+                        {notifications.map((notification) => (
+                          <li
+                            key={notification.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleMarkOneRead(notification.id)}
+                            onKeyDown={(e) =>
+                              (e.key === "Enter" || e.key === " ") &&
+                              handleMarkOneRead(notification.id)
+                            }
+                            className={`px-4 py-3 text-sm cursor-pointer hover:bg-slate-50/80 transition-colors ${
+                              notification.read ? "bg-white" : "bg-blue-50/60"
+                            }`}
+                          >
+                            <p className="font-semibold text-slate-900 text-xs">
+                              {notification.title}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {notification.description}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {notification.time}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="px-4 py-2 border-t border-slate-100 text-center">
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                      onClick={() => setNotificationsOpen(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={onBack}
+              className="p-2 bg-slate-100 text-slate-400 rounded-full"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">

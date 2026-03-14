@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { formatBookingCode } from "@/lib/utils";
 
 type AdminNotification = {
   id: string;
@@ -33,6 +34,7 @@ export async function GET() {
 
     const notifications: AdminNotification[] = rows.map((row) => {
       const bookingId = row.id?.toString() ?? "booking";
+      const ref = formatBookingCode(bookingId);
       const customerName = row.name ?? "Customer";
       const service = row.service ?? "Cleaning";
       const status = (row.status ?? "pending") as string;
@@ -67,7 +69,7 @@ export async function GET() {
       return {
         id: bookingId,
         title,
-        description: `${customerName} requested a ${service} booking (${bookingId}).`,
+        description: `${customerName} requested a ${service} booking (${ref}).`,
         time: timeLabel,
         read: status !== "pending",
         type,

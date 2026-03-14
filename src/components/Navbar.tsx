@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,10 +23,14 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg bg-hero-gradient flex items-center justify-center">
-              <span className="text-primary-foreground font-display font-bold text-lg">S</span>
-            </div>
-            <span className="font-display font-bold text-xl text-foreground">Shalean Projects</span>
+            <Image
+              src="/logo.png"
+              alt="Shalean"
+              width={36}
+              height={36}
+              className="h-9 w-9 object-contain"
+            />
+            <span className="font-display font-bold text-xl text-foreground">Shalean Cleaning Services</span>
           </Link>
 
           {/* Desktop Navigation */}

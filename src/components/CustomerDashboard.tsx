@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   Home,
   Calendar,
@@ -71,6 +72,7 @@ type CustomerNotification = {
   title: string;
   description: string;
   time: string;
+  read: boolean;
   type: "upcoming" | "booking_update" | "payment" | "other";
 };
 
@@ -475,7 +477,9 @@ export const CustomerDashboard = ({
           notifications?: CustomerNotification[];
         };
         if (!cancelled && body.notifications) {
-          setNotifications(body.notifications);
+          setNotifications(
+            body.notifications.map((n) => ({ ...n, read: n.read ?? false }))
+          );
         }
       } catch (err) {
         console.error("Error loading customer notifications", err);
@@ -493,6 +497,22 @@ export const CustomerDashboard = ({
       cancelled = true;
     };
   }, []);
+
+  const unreadNotifications = notifications.filter((n) => !n.read).length;
+  const handleToggleNotifications = () => {
+    setNotificationsOpen((open) => !open);
+    setNotifications((current) =>
+      current.map((n) => (n.read ? n : { ...n, read: true }))
+    );
+  };
+  const handleMarkAllRead = () => {
+    setNotifications((current) => current.map((n) => ({ ...n, read: true })));
+  };
+  const handleMarkOneRead = (id: string) => {
+    setNotifications((current) =>
+      current.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -611,9 +631,13 @@ export const CustomerDashboard = ({
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Sparkles className="text-white w-6 h-6" />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Shalean"
+              width={40}
+              height={40}
+              className="h-10 w-10 object-contain flex-shrink-0"
+            />
             <div>
               <span className="font-black text-xl tracking-tight text-slate-900 block leading-none">
                 SHALEAN
@@ -633,11 +657,16 @@ export const CustomerDashboard = ({
             </button>
             <div className="relative">
               <button
-                className="p-2 text-slate-400 hover:text-blue-600 relative"
-                onClick={() => setNotificationsOpen((open) => !open)}
+                className="p-2 text-slate-400 hover:text-blue-600 relative rounded-full hover:bg-slate-100 transition-colors"
+                onClick={handleToggleNotifications}
+                aria-label={
+                  unreadNotifications
+                    ? `You have ${unreadNotifications} unread notifications`
+                    : "Notifications"
+                }
               >
                 <Bell className="w-5 h-5" />
-                {notifications.length > 0 && (
+                {unreadNotifications > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
                 )}
               </button>
@@ -650,13 +679,31 @@ export const CustomerDashboard = ({
                     exit={{ opacity: 0, y: -8 }}
                   >
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                        Alerts
-                      </p>
-                      <span className="text-[11px] text-slate-400">
-                        {notifications.length}{" "}
-                        {notifications.length === 1 ? "item" : "items"}
-                      </span>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                          Notifications
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {notificationsLoading
+                            ? "Loading…"
+                            : notificationsError
+                            ? notificationsError
+                            : unreadNotifications > 0
+                            ? `${unreadNotifications} new ${unreadNotifications === 1 ? "alert" : "alerts"}`
+                            : "You're all caught up"}
+                        </p>
+                      </div>
+                      {!notificationsLoading &&
+                        !notificationsError &&
+                        notifications.some((n) => !n.read) && (
+                          <button
+                            type="button"
+                            onClick={handleMarkAllRead}
+                            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+                          >
+                            Mark all read
+                          </button>
+                        )}
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notificationsLoading ? (
@@ -672,7 +719,16 @@ export const CustomerDashboard = ({
                         notifications.map((n) => (
                           <div
                             key={n.id + n.time}
-                            className="px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-slate-50/80 cursor-default"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleMarkOneRead(n.id)}
+                            onKeyDown={(e) =>
+                              (e.key === "Enter" || e.key === " ") &&
+                              handleMarkOneRead(n.id)
+                            }
+                            className={`px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-slate-50/80 cursor-pointer transition-colors ${
+                              n.read ? "bg-white" : "bg-blue-50/60"
+                            }`}
                           >
                             <div className="flex items-start gap-3">
                               <div className="mt-0.5">
@@ -704,6 +760,15 @@ export const CustomerDashboard = ({
                           {notificationsError}
                         </div>
                       )}
+                    </div>
+                    <div className="px-4 py-2 border-t border-slate-100 text-center">
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                        onClick={() => setNotificationsOpen(false)}
+                      >
+                        Close
+                      </button>
                     </div>
                   </motion.div>
                 )}

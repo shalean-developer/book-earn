@@ -2686,7 +2686,7 @@ const Step5Confirmation = ({
     const startStr = formatForCalendar(start);
     const endStr = formatForCalendar(end);
 
-    const title = encodeURIComponent(`${service.title} – Shalean Cleaning`);
+    const title = encodeURIComponent(`${service.title} – Shalean Cleaning Services`);
     const details = encodeURIComponent(
       `Booking reference: ${bookingRef}\nService: ${service.title}\nAddress: ${data.address}${
         data.apartmentUnit ? `, ${data.apartmentUnit}` : ""

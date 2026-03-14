@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MapPin, User, ShieldCheck, Smartphone, KeyRound, Loader2 } from "lucide-react";
@@ -72,9 +73,13 @@ function LoginPageContent() {
       <div className="max-w-4xl w-full grid md:grid-cols-[1.2fr,1fr] gap-10 bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="p-8 md:p-10">
           <div className="flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center">
-              <MapPin className="w-4 h-4 text-white" />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Shalean"
+              width={32}
+              height={32}
+              className="h-8 w-8 object-contain flex-shrink-0"
+            />
             <div>
               <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
                 Shalean Portal

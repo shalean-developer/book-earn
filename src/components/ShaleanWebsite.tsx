@@ -56,6 +56,9 @@ import { CareersPage } from "./CareersPage";
 import { ContactPage } from "./ContactPage";
 import { BlogPage } from "./BlogPage";
 import { useSession, signOut } from "next-auth/react";
+import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
 // Dashboards now live on dedicated routes with real auth,
 // so the old in-component dashboard imports are no longer needed.
 
@@ -430,8 +433,8 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
           >
             {/* Full-bleed background image — visible on all breakpoints */}
             <img
-              src="/hero-cleaning-team.png"
-              alt="Professional cleaning team"
+              src="https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1600&q=80"
+              alt="Fresh, clean living room interior"
               className="absolute inset-0 w-full h-full object-cover object-left-top"
             />
             {/* Dark gradient overlay — left to right for text contrast */}
@@ -594,7 +597,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
                 description:
                   "Keep your living space fresh and organized with regular or one-time cleaning tailored to your schedule.",
                 image:
-                  "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
+                  "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80",
               },
               {
                 title: "Office Cleaning",
@@ -608,7 +611,7 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
                 description:
                   "Thorough intensive cleaning for every corner — from upholstery to hard-to-reach spaces.",
                 image:
-                  "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=800&q=80",
+                  "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
               },
             ].map((card) => (
               <motion.div
@@ -810,8 +813,8 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
           <div className="relative overflow-hidden rounded-3xl border border-slate-200 shadow-xl min-h-[320px] lg:min-h-[380px]">
             {/* Background image */}
             <img
-              src="/hero-cleaning-team.png"
-              alt="Professional cleaning team in a modern living room"
+              src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1600&q=80"
+              alt="Living room interior with sofa"
               className="absolute inset-0 h-full w-full object-cover object-left"
             />
 
@@ -910,8 +913,34 @@ const BookingPage = ({
   );
 };
 
+// Path-to-page mapping for real routes (SEO and deep links)
+const PATH_TO_PAGE: Record<string, PageType> = {
+  "/": "home",
+  "/services": "services",
+  "/pricing": "pricing",
+  "/locations": "locations",
+  "/about": "about",
+  "/contact": "contact",
+  "/careers": "careers",
+  "/blog": "blog",
+};
+
+const PAGE_TO_PATH: Record<PageType, string> = {
+  home: "/",
+  services: "/services",
+  pricing: "/pricing",
+  locations: "/locations",
+  about: "/about",
+  contact: "/contact",
+  careers: "/careers",
+  blog: "/blog",
+  booking: "/booking/your-cleaning-plan",
+};
+
 // ─── NAVIGATION & LAYOUT ──────────────────────────────────────────────────────
 export const ShaleanWebsite = () => {
+  const pathname = usePathname();
+  const router = useRouter();
   const [currentPage, setCurrentPage] = useState<PageType>("home");
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -926,9 +955,9 @@ export const ShaleanWebsite = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Sync current page and booking step from URL (real routes + booking steps)
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const { pathname } = window.location;
+    if (!pathname) return;
     if (pathname.startsWith("/booking")) {
       setCurrentPage("booking");
       const parts = pathname.split("/").filter(Boolean);
@@ -940,13 +969,21 @@ export const ShaleanWebsite = () => {
         payment: 4,
       };
       setBookingStep(slugToStep[slug] ?? 1);
+    } else {
+      setCurrentPage(PATH_TO_PAGE[pathname] ?? "home");
     }
-  }, []);
+  }, [pathname]);
 
   const navigate = (page: PageType) => {
-    setCurrentPage(page);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (page === "booking") {
+      router.push("/booking/your-cleaning-plan");
+      return;
+    }
+    const path = PAGE_TO_PATH[page];
+    if (path) router.push(path);
+    else setCurrentPage(page);
   };
 
   const navLinks: { label: string; id: PageType }[] = [
@@ -971,14 +1008,21 @@ export const ShaleanWebsite = () => {
         <div className="w-full max-w-7xl px-6">
           <div className="flex items-center justify-between rounded-full bg-black text-white px-6 py-2 shadow-lg gap-6">
             {/* Brand */}
-            <button
-              className="flex items-center gap-2 cursor-pointer flex-shrink-0"
-              onClick={() => navigate("home")}
+            <Link
+              href="/"
+              className="flex items-center gap-2 flex-shrink-0"
             >
+              <Image
+                src="/logo.png"
+                alt="Shalean"
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
               <span className="text-lg font-black tracking-[0.2em]">
                 Shalean
               </span>
-            </button>
+            </Link>
 
             {/* Center: either nav links or booking stepper */}
             <div className="flex-1 flex justify-center">
@@ -1025,20 +1069,10 @@ export const ShaleanWebsite = () => {
                 </div>
               ) : (
                 <div className="hidden lg:flex items-center gap-8 text-sm">
-                  {["Home", "About", "Service", "Pricing"].map((label) => (
-                    <button
-                      key={label}
-                      onClick={() => {
-                        if (label === "Home") navigate("home");
-                        if (label === "About") navigate("about");
-                        if (label === "Service") navigate("services");
-                        if (label === "Pricing") navigate("pricing");
-                      }}
-                      className="font-medium text-white/80 hover:text-white transition-colors"
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  <Link href="/" className="font-medium text-white/80 hover:text-white transition-colors">Home</Link>
+                  <Link href="/about" className="font-medium text-white/80 hover:text-white transition-colors">About</Link>
+                  <Link href="/services" className="font-medium text-white/80 hover:text-white transition-colors">Service</Link>
+                  <Link href="/pricing" className="font-medium text-white/80 hover:text-white transition-colors">Pricing</Link>
                   {!isAuthenticated && (
                     <button
                       onClick={() => {
@@ -1142,9 +1176,13 @@ export const ShaleanWebsite = () => {
             className="fixed inset-0 z-[60] bg-black text-white p-6 flex flex-col"
           >
             <div className="flex justify-between items-center mb-10">
-              <span className="text-xl font-black tracking-[0.2em]">
-                Shalean
-              </span>
+              <Image
+                src="/logo.png"
+                alt="Shalean"
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20"
@@ -1153,26 +1191,10 @@ export const ShaleanWebsite = () => {
               </button>
             </div>
             <div className="flex flex-col gap-6 text-lg">
-              {[
-                "Home",
-                "About",
-                "Service",
-                "Pricing",
-              ].map((label) => (
-                <button
-                  key={label}
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    if (label === "Home") navigate("home");
-                    if (label === "About") navigate("about");
-                    if (label === "Service") navigate("services");
-                    if (label === "Pricing") navigate("pricing");
-                  }}
-                  className="text-left font-medium text-white/80 hover:text-white transition-colors"
-                >
-                  {label}
-                </button>
-              ))}
+              <Link href="/" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Home</Link>
+              <Link href="/about" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">About</Link>
+              <Link href="/services" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Service</Link>
+              <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Pricing</Link>
               {!isAuthenticated && (
                 <button
                   onClick={() => {
@@ -1220,12 +1242,12 @@ export const ShaleanWebsite = () => {
             <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between text-xs sm:text-sm">
               <span>©2026 Shalean. All rights reserved</span>
               <div className="flex items-center gap-4">
-                <span className="cursor-pointer text-white/70 hover:text-white">
-                  Privacy Policy
-                </span>
-                <span className="cursor-pointer text-white/70 hover:text-white">
-                  Terms of Use
-                </span>
+                <Link href="/terms" className="text-white/70 hover:text-white transition">
+                  Terms of service
+                </Link>
+                <Link href="/cancellation-policy" className="text-white/70 hover:text-white transition">
+                  Cancellation policy
+                </Link>
               </div>
             </div>
           </footer>
@@ -1244,12 +1266,16 @@ export const ShaleanWebsite = () => {
                 {/* Left: Brand */}
                 <div className="space-y-6">
                   <div className="space-y-3">
-                    <h2 className="text-xl font-semibold tracking-tight">
-                      Shalean
-                    </h2>
+                    <Image
+                      src="/logo.png"
+                      alt="Shalean"
+                      width={40}
+                      height={40}
+                      className="h-10 w-10 object-contain"
+                    />
                     <p className="max-w-sm text-sm text-neutral-400">
-                      Crafting meaningful designs that blend creativity,
-                      usability, and impact.
+                      Professional home, office and Airbnb cleaning in Cape Town.
+                      Book online with trusted, vetted cleaners.
                     </p>
                   </div>
 
@@ -1257,6 +1283,7 @@ export const ShaleanWebsite = () => {
                     {[Facebook, Twitter, Instagram].map((Icon, idx) => (
                       <button
                         key={idx}
+                        aria-label={idx === 0 ? "Facebook" : idx === 1 ? "X" : "Instagram"}
                         className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/60 text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
                       >
                         <Icon className="h-4 w-4" />
@@ -1269,61 +1296,70 @@ export const ShaleanWebsite = () => {
                 <div className="grid gap-8 text-sm md:grid-cols-3">
                   <div>
                     <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      Navigation
+                      Explore
                     </h3>
                     <ul className="space-y-2">
-                      {["Home", "Features", "Service", "How it works", "Pricing", "FAQ"].map(
-                        (item) => (
-                          <li key={item}>
-                            <span className="cursor-pointer text-neutral-300 transition hover:text-white">
-                              {item}
-                            </span>
-                          </li>
-                        )
-                      )}
+                      <li>
+                        <Link href="/" className="text-neutral-300 transition hover:text-white">Home</Link>
+                      </li>
+                      <li>
+                        <Link href="/booking/your-cleaning-plan" className="text-neutral-300 transition hover:text-white">Book a clean</Link>
+                      </li>
+                      <li>
+                        <Link href="/services" className="text-neutral-300 transition hover:text-white">Services</Link>
+                      </li>
+                      <li>
+                        <Link href="/pricing" className="text-neutral-300 transition hover:text-white">Pricing</Link>
+                      </li>
+                      <li>
+                        <Link href="/locations" className="text-neutral-300 transition hover:text-white">Locations</Link>
+                      </li>
+                      <li>
+                        <Link href="/about" className="text-neutral-300 transition hover:text-white">About</Link>
+                      </li>
+                      <li>
+                        <Link href="/contact" className="text-neutral-300 transition hover:text-white">Contact</Link>
+                      </li>
                     </ul>
                   </div>
 
                   <div>
                     <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      What we do
+                      Company
                     </h3>
                     <ul className="space-y-2">
-                      {[
-                        "Workflow Automation",
-                        "Collaboration Tools",
-                        "Integrations",
-                        "How it works",
-                        "Policy",
-                      ].map((item) => (
-                        <li key={item}>
-                          <span className="text-neutral-300 transition hover:text-white">
-                            {item}
-                          </span>
-                        </li>
-                      ))}
+                      <li>
+                        <Link href="/about" className="text-neutral-300 transition hover:text-white">About us</Link>
+                      </li>
+                      <li>
+                        <Link href="/careers" className="text-neutral-300 transition hover:text-white">Careers</Link>
+                      </li>
+                      <li>
+                        <Link href="/blog" className="text-neutral-300 transition hover:text-white">Blog</Link>
+                      </li>
+                      <li>
+                        <Link href="/locations/sea-point" className="text-neutral-300 transition hover:text-white">Areas we serve</Link>
+                      </li>
                     </ul>
                   </div>
 
                   <div>
                     <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      Support
+                      Legal & support
                     </h3>
                     <ul className="space-y-2">
-                      {[
-                        "FAQ",
-                        "Collaboration",
-                        "Hire Me",
-                        "Licensing & Usage",
-                        "Feedback",
-                        "Resources",
-                      ].map((item) => (
-                        <li key={item}>
-                          <span className="text-neutral-300 transition hover:text-white">
-                            {item}
-                          </span>
-                        </li>
-                      ))}
+                      <li>
+                        <Link href="/terms" className="text-neutral-300 transition hover:text-white">Terms of service</Link>
+                      </li>
+                      <li>
+                        <Link href="/cancellation-policy" className="text-neutral-300 transition hover:text-white">Cancellation policy</Link>
+                      </li>
+                      <li>
+                        <Link href="/promotions" className="text-neutral-300 transition hover:text-white">Promotions</Link>
+                      </li>
+                      <li>
+                        <Link href="/login" className="text-neutral-300 transition hover:text-white">Log in</Link>
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -1331,14 +1367,14 @@ export const ShaleanWebsite = () => {
 
                 {/* Bottom bar */}
                 <div className="relative mt-10 flex flex-col gap-4 border-t border-neutral-800 pt-6 text-xs text-neutral-500 md:flex-row md:items-center md:justify-between">
-                  <p>©2026 Shalean. All rights reserved</p>
+                  <p>©2026 Shalean Cleaning Services. All rights reserved</p>
                   <div className="flex items-center gap-6">
-                    <span className="cursor-pointer transition hover:text-neutral-200">
-                      Privacy Policy
-                    </span>
-                    <span className="cursor-pointer transition hover:text-neutral-200">
-                      Term of Use
-                    </span>
+                    <Link href="/terms" className="transition hover:text-neutral-200">
+                      Terms of service
+                    </Link>
+                    <Link href="/cancellation-policy" className="transition hover:text-neutral-200">
+                      Cancellation policy
+                    </Link>
                   </div>
                 </div>
               </div>

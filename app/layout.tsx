@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "@/index.css";
 import { Providers } from "./providers";
+import { SITE_URL } from "@/lib/utils";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,18 +17,27 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Shalean Projects - Find & Book Trusted Service Professionals",
+  title: "Shalean Cleaning Services - Find & Book Trusted Service Professionals",
   description: "Book verified professionals for home cleaning, plumbing, car services, and more. Instant booking, secure payments, and quality guaranteed.",
   keywords: "service booking, home services, cleaning, plumbing, handyman, book professionals, Shalean",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
   openGraph: {
-    title: "Shalean Projects - Find & Book Trusted Service Professionals",
+    title: "Shalean Cleaning Services - Find & Book Trusted Service Professionals",
     description: "Book verified professionals for any service. From home cleaning to car repair — all in one place.",
     type: "website",
-    url: "https://shalean.com",
+    url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Shalean Projects - Find & Book Trusted Service Professionals",
+    title: "Shalean Cleaning Services - Find & Book Trusted Service Professionals",
     description: "Book verified professionals for any service. From home cleaning to car repair — all in one place.",
   },
 };
@@ -50,7 +60,7 @@ export default function RootLayout({
               name: "Shalean Cleaning Services",
               description:
                 "Professional home, office and Airbnb cleaning services in Cape Town and surrounding suburbs.",
-              url: "https://shalean.com",
+              url: SITE_URL,
               telephone: "+27 87 153 5250",
               areaServed: [
                 "Cape Town",

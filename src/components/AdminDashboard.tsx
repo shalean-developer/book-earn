@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   Users,
   DollarSign,
@@ -17,8 +18,16 @@ import {
   Menu,
   Sparkles,
 } from "lucide-react";
+import AdminPricingManager from "./AdminPricingManager";
 
-type AdminTab = "overview" | "bookings" | "cleaners" | "customers" | "reviews" | "settings";
+type AdminTab =
+  | "overview"
+  | "bookings"
+  | "cleaners"
+  | "customers"
+  | "reviews"
+  | "pricing"
+  | "settings";
 
 interface StatCardProps {
   title: string;
@@ -306,7 +315,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [customerDetailPage, setCustomerDetailPage] = useState(1);
   const [customerDetailPageSize, setCustomerDetailPageSize] = useState(5);
   const [settings, setSettings] = useState({
-    companyName: "Shalean Cleaning",
+    companyName: "Shalean Cleaning Services",
     defaultCity: "Cape Town",
     workingHours: "08:00 - 18:00",
     sameDayBookings: false,
@@ -476,6 +485,11 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
 
   const handleMarkAllRead = () => {
     setNotifications((current) => current.map((n) => ({ ...n, read: true })));
+  };
+  const handleMarkOneRead = (id: string) => {
+    setNotifications((current) =>
+      current.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
   };
 
   const handleAddCleanerSubmit = async (e: React.FormEvent) => {
@@ -1011,6 +1025,11 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       icon: <Calendar className="w-5 h-5" />,
     },
     {
+      id: "pricing",
+      label: "Pricing",
+      icon: <DollarSign className="w-5 h-5" />,
+    },
+    {
       id: "cleaners",
       label: "Cleaners",
       icon: <UserCheck className="w-5 h-5" />,
@@ -1041,9 +1060,13 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
         } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col hidden md:flex`}
       >
         <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Sparkles className="text-white w-5 h-5" />
-          </div>
+          <Image
+            src="/logo.png"
+            alt="Shalean"
+            width={32}
+            height={32}
+            className="h-8 w-8 object-contain flex-shrink-0"
+          />
           {isSidebarOpen && (
             <span className="font-black text-xl tracking-tight text-slate-900">SHALEAN</span>
           )}
@@ -1155,7 +1178,14 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       {notifications.map((notification) => (
                         <li
                           key={notification.id}
-                          className={`px-4 py-3 text-sm ${
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleMarkOneRead(notification.id)}
+                          onKeyDown={(e) =>
+                            (e.key === "Enter" || e.key === " ") &&
+                            handleMarkOneRead(notification.id)
+                          }
+                          className={`px-4 py-3 text-sm cursor-pointer hover:bg-slate-50/80 transition-colors ${
                             notification.read ? "bg-white" : "bg-blue-50/60"
                           }`}
                         >
@@ -1667,6 +1697,10 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === "pricing" && (
+            <AdminPricingManager />
           )}
 
           {activeTab === "bookings" && (

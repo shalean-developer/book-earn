@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -71,6 +72,15 @@ function VerifyBookingPageInner() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-slate-200 p-6 sm:p-8">
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/logo.png"
+            alt="Shalean"
+            width={48}
+            height={48}
+            className="h-12 w-12 object-contain"
+          />
+        </div>
         {loading && (
           <div className="flex flex-col items-center text-center space-y-4">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
@@ -163,6 +173,7 @@ export default function VerifyBookingPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-slate-200 p-6 sm:p-8 flex flex-col items-center text-center space-y-4">
+        <Image src="/logo.png" alt="Shalean" width={48} height={48} className="h-12 w-12 object-contain" />
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         <div>
           <p className="text-sm font-semibold text-slate-900">
