@@ -65,18 +65,28 @@ export async function PATCH(
     const { id } = await context.params;
     const body = await req.json().catch(() => ({}));
     const status = typeof body.status === "string" ? body.status.trim() : undefined;
+    const cleanerId =
+      body.cleaner_id === null || body.cleaner_id === ""
+        ? null
+        : typeof body.cleaner_id === "string"
+          ? body.cleaner_id.trim() || null
+          : undefined;
 
-    if (!status) {
+    const validStatuses = ["pending", "confirmed", "completed", "cancelled", "failed"];
+    if (status !== undefined && !validStatuses.includes(status)) {
       return NextResponse.json(
-        { error: "Missing or invalid status" },
+        { error: "Invalid status value" },
         { status: 400 }
       );
     }
 
-    const validStatuses = ["pending", "confirmed", "completed", "cancelled", "failed"];
-    if (!validStatuses.includes(status)) {
+    const updatePayload: Record<string, unknown> = {};
+    if (status !== undefined) updatePayload.status = status;
+    if (cleanerId !== undefined) updatePayload.cleaner_id = cleanerId;
+
+    if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json(
-        { error: "Invalid status value" },
+        { error: "Missing status or cleaner_id to update" },
         { status: 400 }
       );
     }
@@ -85,7 +95,7 @@ export async function PATCH(
 
     const { data: updated, error: updateError } = await supabase
       .from("bookings")
-      .update({ status })
+      .update(updatePayload)
       .eq("id", id)
       .select("*")
       .maybeSingle();
@@ -117,6 +127,42 @@ export async function PATCH(
     console.error("Unexpected error in admin booking PATCH:", err);
     return NextResponse.json(
       { error: "Unexpected server error updating booking" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/admin/bookings/[id]
+ * Permanently delete a booking (admin only).
+ */
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await context.params;
+    const supabase = await createClient();
+
+    const { error } = await supabase.from("bookings").delete().eq("id", id);
+
+    if (error) {
+      console.error("Error deleting booking", error);
+      return NextResponse.json(
+        { error: "Failed to delete booking" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ deleted: true });
+  } catch (err) {
+    console.error("Unexpected error in admin booking DELETE:", err);
+    return NextResponse.json(
+      { error: "Unexpected server error deleting booking" },
       { status: 500 }
     );
   }

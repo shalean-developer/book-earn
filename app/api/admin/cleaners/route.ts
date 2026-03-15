@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { createClient } from "@/lib/supabase-server";
+
+async function requireAdmin(req: NextRequest) {
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const role = (token as { role?: string } | null)?.role;
+  if (token && role === "admin") return true;
+  return false;
+}
 
 export type AdminCleaner = {
   id: string;
@@ -16,11 +24,14 @@ export type AdminCleaner = {
 
 export async function GET(req: NextRequest) {
   try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const pageSize = Math.min(
       Math.max(1, parseInt(searchParams.get("limit") ?? "8", 10)),
-      50
+      100
     );
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
     const offset = (page - 1) * pageSize;
@@ -135,6 +146,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await req.json();
     const { name, email, phone, password } = body as {
       name?: string;

@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { createClient } from "@/lib/supabase-server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+
+async function requireAdmin(req: NextRequest) {
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const role = (token as { role?: string } | null)?.role;
+  if (token && role === "admin") return true;
+  return false;
+}
 
 export type CleanerDetailBooking = {
   id: string;
@@ -19,6 +28,7 @@ export type AdminCleanerDetail = {
   avatar: string | null;
   verification_status: string | null;
   working_areas: string[];
+  working_days: number[];
   unavailable_dates: string[];
   jobs: number;
   specialty: string;
@@ -27,10 +37,13 @@ export type AdminCleanerDetail = {
 };
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { id } = await params;
     if (!id) {
       return NextResponse.json(
@@ -44,7 +57,7 @@ export async function GET(
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select(
-        "id, name, email, phone, avatar, verification_status, working_areas, unavailable_dates"
+        "id, name, email, phone, avatar, verification_status, working_areas, working_days, unavailable_dates"
       )
       .eq("role", "cleaner")
       .eq("id", id)
@@ -120,6 +133,9 @@ export async function GET(
       working_areas: Array.isArray(profile.working_areas)
         ? profile.working_areas
         : [],
+      working_days: Array.isArray(profile.working_days)
+        ? profile.working_days.filter((d: unknown) => typeof d === "number" && d >= 0 && d <= 6)
+        : [],
       unavailable_dates: Array.isArray(profile.unavailable_dates)
         ? profile.unavailable_dates
         : [],
@@ -144,6 +160,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { id } = await params;
     if (!id) {
       return NextResponse.json(
@@ -167,6 +186,10 @@ export async function PATCH(
       patch.working_areas = body.working_areas.filter(
         (x: any) => typeof x === "string" && x.trim()
       );
+    if (Array.isArray(body.working_days))
+      patch.working_days = body.working_days.filter(
+        (d: unknown) => typeof d === "number" && d >= 0 && d <= 6
+      );
     if (Array.isArray(body.unavailable_dates))
       patch.unavailable_dates = body.unavailable_dates.filter(
         (x: any) => typeof x === "string" && x.trim()
@@ -182,7 +205,7 @@ export async function PATCH(
       .eq("id", id)
       .eq("role", "cleaner")
       .select(
-        "id, name, email, phone, avatar, verification_status, working_areas, unavailable_dates"
+        "id, name, email, phone, avatar, verification_status, working_areas, working_days, unavailable_dates"
       )
       .single();
 
@@ -199,6 +222,77 @@ export async function PATCH(
     console.error("Unexpected error updating cleaner:", error);
     return NextResponse.json(
       { error: "Failed to update cleaner" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/admin/cleaners/[id]
+ * Permanently delete a cleaner (profile + auth user). Unlinks their bookings.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { id } = await params;
+    if (!id) {
+      return NextResponse.json(
+        { error: "Cleaner ID required" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await createClient();
+    const admin = getSupabaseAdmin();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("id", id)
+      .eq("role", "cleaner")
+      .single();
+
+    if (!profile) {
+      return NextResponse.json(
+        { error: "Cleaner not found" },
+        { status: 404 }
+      );
+    }
+
+    await supabase
+      .from("bookings")
+      .update({ cleaner_id: null })
+      .eq("cleaner_id", id);
+
+    const { error: deleteProfileError } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", id);
+
+    if (deleteProfileError) {
+      console.error("Error deleting cleaner profile:", deleteProfileError);
+      return NextResponse.json(
+        { error: "Failed to delete cleaner" },
+        { status: 500 }
+      );
+    }
+
+    try {
+      await admin.auth.admin.deleteUser(id);
+    } catch (authErr) {
+      console.warn("Auth user delete (cleaner) failed, profile was removed:", authErr);
+    }
+
+    return NextResponse.json({ deleted: true });
+  } catch (error: unknown) {
+    console.error("Unexpected error deleting cleaner:", error);
+    return NextResponse.json(
+      { error: "Failed to delete cleaner" },
       { status: 500 }
     );
   }

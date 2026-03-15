@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status")?.trim() || undefined;
     const serviceFilter = searchParams.get("service")?.trim() || undefined;
+    const period = searchParams.get("period")?.trim().toLowerCase() || undefined;
+    const q = searchParams.get("q")?.trim() || undefined;
     const pageSize = Math.min(
       Math.max(1, parseInt(searchParams.get("limit") ?? "10", 10)),
       100
@@ -40,6 +42,53 @@ export async function GET(req: NextRequest) {
     }
     if (serviceFilter) {
       query = query.eq("service", serviceFilter);
+    }
+    if (period) {
+      const now = new Date();
+      const toYMD = (d: Date) => d.toISOString().slice(0, 10);
+      let dateFrom: string;
+      let dateEnd: string;
+      switch (period) {
+        case "today":
+          dateFrom = toYMD(now);
+          dateEnd = dateFrom;
+          break;
+        case "week": {
+          const weekStart = new Date(now);
+          weekStart.setDate(weekStart.getDate() - 6);
+          dateFrom = toYMD(weekStart);
+          dateEnd = toYMD(now);
+          break;
+        }
+        case "month":
+          dateFrom = toYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+          dateEnd = toYMD(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+          break;
+        case "90days": {
+          const start = new Date(now);
+          start.setDate(start.getDate() - 89);
+          dateFrom = toYMD(start);
+          dateEnd = toYMD(now);
+          break;
+        }
+        case "year":
+          dateFrom = toYMD(new Date(now.getFullYear(), 0, 1));
+          dateEnd = toYMD(new Date(now.getFullYear(), 11, 31));
+          break;
+        default:
+          dateFrom = "";
+          dateEnd = "";
+      }
+      if (dateFrom && dateEnd) {
+        query = query.gte("date", dateFrom).lte("date", dateEnd);
+      }
+    }
+    if (q && q.length > 0) {
+      const escaped = q.replace(/"/g, '\\"');
+      const pattern = `"%${escaped}%"`;
+      query = query.or(
+        `name.ilike.${pattern},email.ilike.${pattern},reference.ilike.${pattern}`
+      );
     }
 
     const { data, error, count } = await query;

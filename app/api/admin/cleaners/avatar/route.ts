@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { createClient } from "@/lib/supabase-server";
+
+async function requireAdmin(req: NextRequest) {
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const role = (token as { role?: string } | null)?.role;
+  if (token && role === "admin") return true;
+  return false;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const profileId = formData.get("profileId") as string | null;

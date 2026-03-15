@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "import-customers": "npx tsx scripts/import-customers-from-csv.ts"
   },
   "dependencies": {
     "@fontsource/outfit": "^5.2.8",
@@ -72,6 +73,7 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "autoprefixer": "^10.4.21",
+    "csv-parse": "^6.1.0",
     "eslint": "^9.32.0",
     "eslint-config-next": "^16.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

@@ -3,10 +3,17 @@ import { createClient } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
 
+/** Generate a new Paystack-style reference (each payment attempt needs a unique one). */
+function generatePayableReference() {
+  const random = Math.floor(10000000 + Math.random() * 90000000);
+  return `SC${random}`;
+}
+
 /**
  * GET /api/booking/pay-by-reference?reference=SC12345678
  * Returns Paystack authorization URL for an existing (pending) booking.
- * Used by the payment link in the customer email and by the /booking/pay page.
+ * Uses a fresh reference per request so Paystack accepts the transaction
+ * (reusing the same ref after email link or retries would fail).
  */
 export async function GET(req: NextRequest) {
   try {
@@ -34,7 +41,7 @@ export async function GET(req: NextRequest) {
     const { data: row, error } = await supabase
       .from("bookings")
       .select("id, status, paystack_status, total_amount, currency, email")
-      .eq("paystack_reference", reference)
+      .or(`paystack_reference.eq.${reference},reference.eq.${reference}`)
       .maybeSingle();
 
     if (error) {
@@ -72,11 +79,29 @@ export async function GET(req: NextRequest) {
     const totalAmount = Number((row as { total_amount?: number }).total_amount ?? 0);
     const currency = (row as { currency?: string }).currency || "ZAR";
     const email = (row as { email?: string }).email || "";
+    const bookingId = (row as { id?: string }).id;
 
-    if (totalAmount <= 0 || !email) {
+    if (totalAmount <= 0 || !email || !bookingId) {
       return NextResponse.json(
         { error: "Invalid booking data" },
         { status: 400 }
+      );
+    }
+
+    const newReference = generatePayableReference();
+    const { error: updateError } = await supabase
+      .from("bookings")
+      .update({
+        paystack_reference: newReference,
+        booking_ref: newReference.slice(0, 20),
+      })
+      .eq("id", bookingId);
+
+    if (updateError) {
+      console.error("Pay-by-reference: update booking ref failed", updateError);
+      return NextResponse.json(
+        { error: "Could not prepare payment" },
+        { status: 500 }
       );
     }
 
@@ -94,7 +119,7 @@ export async function GET(req: NextRequest) {
           email,
           amount: amountInMinorUnits,
           currency,
-          reference,
+          reference: newReference,
           callback_url: `${appUrl.replace(/\/$/, "")}/booking/verify`,
         }),
       }
@@ -103,8 +128,15 @@ export async function GET(req: NextRequest) {
     if (!paystackRes.ok) {
       const text = await paystackRes.text();
       console.error("Paystack initialize (pay-by-reference) failed", text);
+      let message = "Failed to start payment";
+      try {
+        const parsed = JSON.parse(text) as { message?: string };
+        if (parsed?.message) message = parsed.message;
+      } catch {
+        // use default message
+      }
       return NextResponse.json(
-        { error: "Failed to start payment" },
+        { error: message },
         { status: 502 }
       );
     }

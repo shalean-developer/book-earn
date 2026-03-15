@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   Users,
   DollarSign,
@@ -52,6 +54,7 @@ interface StatCardProps {
 
 type OverviewStats = {
   totalRevenue: number;
+  totalRevenueAllTime: number;
   activeBookings: number;
   newCustomersLast30Days: number;
   averageRating?: number | null;
@@ -79,6 +82,7 @@ type OverviewServiceDistributionItem = {
 type OverviewResponse = {
   stats: OverviewStats;
   recentBookings: OverviewRecentBooking[];
+  upcomingBookings: OverviewRecentBooking[];
   serviceDistribution: OverviewServiceDistributionItem[];
 };
 
@@ -131,6 +135,7 @@ type AdminCleanerDetail = {
   avatar: string | null;
   verification_status: string | null;
   working_areas: string[];
+  working_days: number[];
   unavailable_dates: string[];
   jobs: number;
   specialty: string;
@@ -236,15 +241,27 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [revenueRange, setRevenueRange] = useState<"7d" | "30d">("7d");
   const [recentBookingsPage, setRecentBookingsPage] = useState(1);
+  const [upcomingBookingsPage, setUpcomingBookingsPage] = useState(1);
   const [openBookingActionsId, setOpenBookingActionsId] = useState<string | null>(null);
   const [activeDialog, setActiveDialog] = useState<{
-    type: "view" | "complete" | "cancel" | null;
+    type: "view" | "complete" | "cancel" | "delete" | null;
     bookingId: string | null;
   }>({ type: null, bookingId: null });
+  const [bookingDeleteLoading, setBookingDeleteLoading] = useState(false);
+  const [confirmDeleteBookingId, setConfirmDeleteBookingId] = useState<string | null>(null);
+  const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
+  const [bulkDeleteBookingsOpen, setBulkDeleteBookingsOpen] = useState(false);
+  const [bulkDeleteBookingsLoading, setBulkDeleteBookingsLoading] = useState(false);
+  const [bulkStatusUpdateLoading, setBulkStatusUpdateLoading] = useState(false);
+  const [bulkStatusValue, setBulkStatusValue] = useState<string>("");
+  const [cleanerDeleteLoading, setCleanerDeleteLoading] = useState(false);
+  const [customerDeleteLoading, setCustomerDeleteLoading] = useState<string | null>(null);
   const [fullBooking, setFullBooking] = useState<Record<string, any> | null>(null);
   const [fullBookingLoading, setFullBookingLoading] = useState(false);
   const [fullBookingError, setFullBookingError] = useState<string | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const router = useRouter();
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
@@ -253,6 +270,8 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [bookingsListError, setBookingsListError] = useState<string | null>(null);
   const [bookingsStatusFilter, setBookingsStatusFilter] = useState<string>("");
   const [bookingsServiceFilter, setBookingsServiceFilter] = useState<string>("");
+  const [bookingsPeriodFilter, setBookingsPeriodFilter] = useState<string>("");
+  const [bookingsQuery, setBookingsQuery] = useState<string>("");
   const [bookingsPage, setBookingsPage] = useState(1);
   const [bookingsPageSize, setBookingsPageSize] = useState(10);
   const [bookingsPagination, setBookingsPagination] = useState<{
@@ -260,6 +279,12 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     pageSize: number;
     totalCount: number;
     totalPages: number;
+  } | null>(null);
+  const [duplicatesSummary, setDuplicatesSummary] = useState<{
+    referenceGroups: number;
+    customerSlotGroups: number;
+    truncated?: boolean;
+    byCustomerSlot?: { key: string; count: number; bookingIds: string[]; sample?: string }[];
   } | null>(null);
   const [cleanersList, setCleanersList] = useState<AdminCleaner[]>([]);
   const [cleanersLoading, setCleanersLoading] = useState(false);
@@ -284,8 +309,19 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     phone: "",
     verification_status: "",
     workingAreasText: "",
+    workingDays: [] as number[],
     unavailableDatesText: "",
   });
+  const [resetPasswordForm, setResetPasswordForm] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+  const [assignCleanerId, setAssignCleanerId] = useState<string | null>(null);
+  const [assignCleanerSaving, setAssignCleanerSaving] = useState(false);
+  const [assignCleanerError, setAssignCleanerError] = useState<string | null>(null);
+  const [bookingDialogCleaners, setBookingDialogCleaners] = useState<AdminCleaner[]>([]);
   const [editCleanerAvatarFile, setEditCleanerAvatarFile] = useState<File | null>(null);
   const [editCleanerSaving, setEditCleanerSaving] = useState(false);
   const [editCleanerError, setEditCleanerError] = useState<string | null>(null);
@@ -628,6 +664,63 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
+  const handleResetCleanerPassword = async () => {
+    if (!profileCleanerId) return;
+    if (resetPasswordForm.newPassword.length < 6) {
+      setResetPasswordError("Password must be at least 6 characters");
+      return;
+    }
+    if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
+      setResetPasswordError("Passwords do not match");
+      return;
+    }
+    setResetPasswordLoading(true);
+    setResetPasswordError(null);
+    try {
+      const res = await fetch(`/api/admin/cleaners/${profileCleanerId}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: resetPasswordForm.newPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResetPasswordError(data?.error || "Failed to reset password");
+        return;
+      }
+      setResetPasswordForm({ newPassword: "", confirmPassword: "" });
+    } catch (err) {
+      console.error("Error resetting password:", err);
+      setResetPasswordError("Failed to reset password");
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
+  const handleSetCleanerStatus = async (verification_status: "verified" | "suspended") => {
+    if (!profileCleanerId || !profileCleanerDetail) return;
+    try {
+      const res = await fetch(`/api/admin/cleaners/${profileCleanerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verification_status }),
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      const updated = data?.cleaner;
+      if (updated) {
+        setProfileCleanerDetail({
+          ...profileCleanerDetail,
+          verification_status: updated.verification_status ?? profileCleanerDetail.verification_status,
+          status: verification_status === "verified" ? "active" : "on-leave",
+        });
+      }
+      setEditCleanerForm((f) => ({ ...f, verification_status }));
+      setCleanersRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error("Error updating cleaner status:", err);
+    }
+  };
+
   const handleSaveCleanerProfile = async () => {
     if (!profileCleanerId) return;
     setEditCleanerSaving(true);
@@ -651,6 +744,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           phone: editCleanerForm.phone,
           verification_status: editCleanerForm.verification_status || null,
           working_areas: workingAreas,
+          working_days: editCleanerForm.workingDays,
           unavailable_dates: unavailableDates,
         }),
       });
@@ -692,6 +786,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           phone: detail.phone ?? "",
           verification_status: detail.verification_status ?? "",
           workingAreasText: (detail.working_areas ?? []).join(", "),
+          workingDays: Array.isArray(detail.working_days) ? detail.working_days : [],
           unavailableDatesText: (detail.unavailable_dates ?? []).join(", "),
         });
       }
@@ -737,48 +832,266 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       });
   }, [overview, revenueRange]);
 
-  const handleBookingAction = (
+  const handleAssignCleanerToBooking = async () => {
+    if (!activeDialog.bookingId) return;
+    setAssignCleanerSaving(true);
+    setAssignCleanerError(null);
+    try {
+      const res = await fetch(`/api/admin/bookings/${activeDialog.bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cleaner_id: assignCleanerId || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAssignCleanerError(data?.error || "Failed to assign cleaner");
+        return;
+      }
+      if (fullBooking) {
+        setFullBooking({ ...fullBooking, cleaner_id: assignCleanerId || null });
+      }
+      setOverview((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          recentBookings: current.recentBookings.map((b) =>
+            b.id === activeDialog.bookingId
+              ? { ...b, cleaner: bookingDialogCleaners.find((c) => c.id === assignCleanerId)?.name ?? null }
+              : b
+          ),
+        };
+      });
+      setBookingsList((current) =>
+        current.map((b) =>
+          b.id === activeDialog.bookingId
+            ? { ...b, cleaner: bookingDialogCleaners.find((c) => c.id === assignCleanerId)?.name ?? null }
+            : b
+        )
+      );
+    } catch (err) {
+      console.error("Error assigning cleaner:", err);
+      setAssignCleanerError("Failed to assign cleaner");
+    } finally {
+      setAssignCleanerSaving(false);
+    }
+  };
+
+  const handleBookingAction = async (
     bookingId: string,
-    action: "view" | "complete" | "cancel"
+    action: "view" | "complete" | "cancel" | "delete"
   ) => {
     setOpenBookingActionsId(null);
 
     if (action === "view") {
       setActiveDialog({ type: "view", bookingId });
       setFullBooking(null);
-      // For now we rely on the summary data already loaded into the overview
-      // payload instead of calling an additional API. This keeps the UX simple
-      // and avoids showing noisy error banners if the server cannot return a
-      // full record due to permissions.
-      setFullBooking(null);
       setFullBookingError(null);
-      setFullBookingLoading(false);
+      setFullBookingLoading(true);
+      setAssignCleanerId(null);
+      setAssignCleanerError(null);
       return;
     }
 
-    // Update local state so the table reflects the change immediately.
-    setOverview((current) => {
-      if (!current) return current;
-      const updatedBookings = current.recentBookings.map((b) => {
-        if (b.id !== bookingId) return b;
-        if (action === "complete") {
-          return { ...b, status: "completed" };
-        }
-        if (action === "cancel") {
-          return { ...b, status: "cancelled" };
-        }
-        return b;
+    if (action === "delete") {
+      setConfirmDeleteBookingId(bookingId);
+      return;
+    }
+
+    if (action === "complete" || action === "cancel") {
+      const newStatus = action === "complete" ? "completed" : "cancelled";
+      const booking =
+        overview?.recentBookings.find((b) => b.id === bookingId) ??
+        bookingsList.find((b) => b.id === bookingId);
+      const previousStatus = booking?.status ?? undefined;
+
+      // Optimistic update
+      setOverview((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          recentBookings: current.recentBookings.map((b) =>
+            b.id !== bookingId ? b : { ...b, status: newStatus }
+          ),
+        };
       });
-      return { ...current, recentBookings: updatedBookings };
-    });
-    setBookingsList((current) =>
-      current.map((b) => {
-        if (b.id !== bookingId) return b;
-        if (action === "complete") return { ...b, status: "completed" };
-        if (action === "cancel") return { ...b, status: "cancelled" };
-        return b;
+      setBookingsList((current) =>
+        current.map((b) =>
+          b.id !== bookingId ? b : { ...b, status: newStatus }
+        )
+      );
+      setFullBooking((f) =>
+        f?.id === bookingId ? { ...f, status: newStatus } : f
+      );
+
+      try {
+        const res = await fetch(`/api/admin/bookings/${bookingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setOverview((current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              recentBookings: current.recentBookings.map((b) =>
+                b.id !== bookingId ? b : { ...b, status: previousStatus }
+              ),
+            };
+          });
+          setBookingsList((current) =>
+            current.map((b) =>
+              b.id !== bookingId ? b : { ...b, status: previousStatus }
+            )
+          );
+          setFullBooking((f) =>
+            f?.id === bookingId ? { ...f, status: previousStatus } : f
+          );
+          alert((data as { error?: string }).error ?? "Failed to update booking status");
+          return;
+        }
+      } catch (err) {
+        setOverview((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            recentBookings: current.recentBookings.map((b) =>
+              b.id !== bookingId ? b : { ...b, status: previousStatus }
+            ),
+          };
+        });
+        setBookingsList((current) =>
+          current.map((b) =>
+            b.id !== bookingId ? b : { ...b, status: previousStatus }
+          )
+        );
+        setFullBooking((f) =>
+          f?.id === bookingId ? { ...f, status: previousStatus } : f
+        );
+        alert("Failed to update booking status");
+      }
+    }
+  };
+
+  const handleBulkDeleteBookings = async () => {
+    if (selectedBookingIds.length === 0) return;
+    setBulkDeleteBookingsLoading(true);
+    try {
+      const res = await fetch("/api/admin/bookings/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedBookingIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? "Failed to delete");
+      const idsSet = new Set(selectedBookingIds);
+      setOverview((current) =>
+        current
+          ? { ...current, recentBookings: current.recentBookings.filter((b) => !idsSet.has(b.id)) }
+          : current
+      );
+      setBookingsList((current) => current.filter((b) => !idsSet.has(b.id)));
+      setBookingsPagination((prev) =>
+        prev
+          ? { ...prev, totalCount: Math.max(0, prev.totalCount - selectedBookingIds.length) }
+          : null
+      );
+      setSelectedBookingIds([]);
+      setBulkDeleteBookingsOpen(false);
+      if (activeDialog.bookingId && idsSet.has(activeDialog.bookingId)) {
+        setActiveDialog({ type: null, bookingId: null });
+        setFullBooking(null);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete bookings.");
+    } finally {
+      setBulkDeleteBookingsLoading(false);
+    }
+  };
+
+  const handleBulkStatusUpdate = async () => {
+    if (selectedBookingIds.length === 0 || !bulkStatusValue) {
+      alert("Select at least one booking and choose a status.");
+      return;
+    }
+    setBulkStatusUpdateLoading(true);
+    try {
+      const res = await fetch("/api/admin/bookings/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedBookingIds, status: bulkStatusValue }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert((data as { error?: string }).error ?? "Failed to update booking status");
+        return;
+      }
+      const idsSet = new Set(selectedBookingIds);
+      setOverview((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          recentBookings: current.recentBookings.map((b) =>
+            idsSet.has(b.id) ? { ...b, status: bulkStatusValue } : b
+          ),
+        };
+      });
+      setBookingsList((current) =>
+        current.map((b) =>
+          idsSet.has(b.id) ? { ...b, status: bulkStatusValue } : b
+        )
+      );
+      if (fullBooking && idsSet.has(fullBooking.id)) {
+        setFullBooking((f) => (f ? { ...f, status: bulkStatusValue } : f));
+      }
+      setSelectedBookingIds([]);
+      setBulkStatusValue("");
+    } catch (err) {
+      alert("Failed to update booking status.");
+    } finally {
+      setBulkStatusUpdateLoading(false);
+    }
+  };
+
+  const handleDownloadBookingsCsv = () => {
+    try {
+      const params = new URLSearchParams();
+      if (bookingsStatusFilter) params.set("status", bookingsStatusFilter);
+      if (bookingsServiceFilter) params.set("service", bookingsServiceFilter);
+      if (bookingsPeriodFilter) params.set("period", bookingsPeriodFilter);
+      if (bookingsQuery.trim()) params.set("q", bookingsQuery.trim());
+      const url =
+        "/api/admin/bookings/export" +
+        (params.toString() ? `?${params.toString()}` : "");
+      window.location.href = url;
+    } catch (err) {
+      console.error("Failed to trigger bookings CSV download", err);
+      alert("Could not start CSV download. Please try again.");
+    }
+  };
+
+  const handleConfirmDeleteBooking = () => {
+    const bookingId = confirmDeleteBookingId;
+    if (!bookingId) return;
+    setBookingDeleteLoading(true);
+    fetch(`/api/admin/bookings/${bookingId}`, { method: "DELETE" })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to delete");
+        setOverview((current) =>
+          current
+            ? { ...current, recentBookings: current.recentBookings.filter((b) => b.id !== bookingId) }
+            : current
+        );
+        setBookingsList((current) => current.filter((b) => b.id !== bookingId));
+        if (activeDialog.bookingId === bookingId) {
+          setActiveDialog({ type: null, bookingId: null });
+          setFullBooking(null);
+        }
+        setConfirmDeleteBookingId(null);
       })
-    );
+      .catch(() => alert("Failed to delete booking."))
+      .finally(() => setBookingDeleteLoading(false));
   };
 
   useEffect(() => {
@@ -786,12 +1099,26 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       try {
         setOverviewLoading(true);
         setOverviewError(null);
-        const res = await fetch("/api/admin/overview");
-        if (!res.ok) {
+        const [overviewRes, duplicatesRes] = await Promise.all([
+          fetch("/api/admin/overview"),
+          fetch("/api/admin/bookings/duplicates"),
+        ]);
+        if (!overviewRes.ok) {
           throw new Error("Failed to load overview");
         }
-        const data: OverviewResponse = await res.json();
+        const data: OverviewResponse = await overviewRes.json();
         setOverview(data);
+        if (duplicatesRes.ok) {
+          const dup = await duplicatesRes.json().catch(() => ({}));
+          setDuplicatesSummary({
+            referenceGroups: dup.summary?.referenceGroups ?? 0,
+            customerSlotGroups: dup.summary?.customerSlotGroups ?? 0,
+            truncated: dup.truncated === true,
+            byCustomerSlot: Array.isArray(dup.byCustomerSlot) ? dup.byCustomerSlot : [],
+          });
+        } else {
+          setDuplicatesSummary(null);
+        }
       } catch (err) {
         console.error("Error loading admin overview:", err);
         setOverviewError("We could not load the latest metrics. Showing demo data instead.");
@@ -804,6 +1131,39 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   }, []);
 
   useEffect(() => {
+    if (activeDialog.type !== "view" || !activeDialog.bookingId) return;
+    const loadFullBooking = async () => {
+      try {
+        setFullBookingLoading(true);
+        setFullBookingError(null);
+        const res = await fetch(`/api/admin/bookings/${activeDialog.bookingId}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setFullBookingError(data?.error || "Failed to load booking");
+          setFullBooking(null);
+          return;
+        }
+        setFullBooking(data?.booking ?? null);
+        setAssignCleanerId(data?.booking?.cleaner_id ?? null);
+        const cleanersRes = await fetch("/api/admin/cleaners?limit=100");
+        const cleanersData = await cleanersRes.json().catch(() => ({}));
+        if (cleanersRes.ok && Array.isArray(cleanersData?.cleaners)) {
+          setBookingDialogCleaners(cleanersData.cleaners);
+        } else {
+          setBookingDialogCleaners([]);
+        }
+      } catch (err) {
+        console.error("Error loading full booking:", err);
+        setFullBookingError("Failed to load booking details");
+        setFullBooking(null);
+      } finally {
+        setFullBookingLoading(false);
+      }
+    };
+    loadFullBooking();
+  }, [activeDialog.type, activeDialog.bookingId]);
+
+  useEffect(() => {
     if (activeTab !== "bookings") return;
     const loadBookings = async () => {
       try {
@@ -812,6 +1172,8 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
         const params = new URLSearchParams();
         if (bookingsStatusFilter) params.set("status", bookingsStatusFilter);
         if (bookingsServiceFilter) params.set("service", bookingsServiceFilter);
+        if (bookingsPeriodFilter) params.set("period", bookingsPeriodFilter);
+        if (bookingsQuery.trim()) params.set("q", bookingsQuery.trim());
         params.set("page", String(bookingsPage));
         params.set("limit", String(bookingsPageSize));
         const res = await fetch(`/api/admin/bookings?${params.toString()}`);
@@ -844,7 +1206,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       }
     };
     loadBookings();
-  }, [activeTab, bookingsStatusFilter, bookingsServiceFilter, bookingsPage, bookingsPageSize]);
+  }, [activeTab, bookingsStatusFilter, bookingsServiceFilter, bookingsPeriodFilter, bookingsQuery, bookingsPage, bookingsPageSize]);
 
   useEffect(() => {
     if (activeTab !== "cleaners") return;
@@ -913,8 +1275,11 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           phone: data.phone ?? "",
           verification_status: data.verification_status ?? "",
           workingAreasText: (data.working_areas ?? []).join(", "),
+          workingDays: Array.isArray(data.working_days) ? data.working_days : [],
           unavailableDatesText: (data.unavailable_dates ?? []).join(", "),
         });
+        setResetPasswordForm({ newPassword: "", confirmPassword: "" });
+        setResetPasswordError(null);
         setIsEditingCleanerProfile(false);
         setEditCleanerAvatarFile(null);
         setEditCleanerError(null);
@@ -1291,7 +1656,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 flex-shrink-0">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 flex-shrink-0 relative">
           <div className="flex items-center gap-4 relative">
             <button className="md:hidden" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
               <Menu className="w-6 h-6" />
@@ -1302,12 +1667,28 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-              <Search className="w-4 h-4 text-slate-400" />
+            <div className="hidden sm:flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 min-w-[8rem]">
+              <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
               <input
                 type="text"
-                placeholder="Quick search..."
-                className="bg-transparent border-none text-xs focus:ring-0 w-32"
+                placeholder={
+                  activeTab === "bookings"
+                    ? "Search by customer, email or reference"
+                    : activeTab === "customers"
+                      ? "Search by name or email"
+                      : "Quick search..."
+                }
+                className="bg-transparent border-none text-xs focus:ring-0 flex-1 min-w-0"
+                value={activeTab === "bookings" ? bookingsQuery : customersQuery}
+                onChange={(e) => {
+                  if (activeTab === "bookings") {
+                    setBookingsQuery(e.target.value);
+                    setBookingsPage(1);
+                  } else {
+                    setCustomersQuery(e.target.value);
+                  }
+                }}
+                aria-label="Quick search"
               />
             </div>
             <button
@@ -1462,8 +1843,50 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 </div>
               </SheetContent>
             </Sheet>
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs border border-blue-200">
-              AD
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen((open) => !open)}
+                className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs border border-blue-200 hover:bg-blue-200 transition-colors"
+                aria-haspopup="menu"
+                aria-expanded={isUserMenuOpen}
+              >
+                AD
+              </button>
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-2xl shadow-lg py-1 text-sm z-30">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      router.push("/");
+                    }}
+                  >
+                    Home
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      router.push("/cleaner");
+                    }}
+                  >
+                    Log to cleaner account
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 border-t border-slate-100"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      signOut({ callbackUrl: "/" });
+                    }}
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -1487,7 +1910,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 {overview ? (
                   [
                     {
-                      title: "Total Revenue",
+                      title: "Revenue (this month)",
                       value: `R${overview.stats.totalRevenue.toLocaleString("en-ZA")}`,
                       icon: <DollarSign className="w-5 h-5" />,
                     },
@@ -1511,11 +1934,76 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                     },
                   ].map((stat, i) => <StatCard key={i} {...stat} />)
                 ) : (
-                  <div className="col-span-4 text-xs text-slate-500">
+                  <div className="col-span-full text-xs text-slate-500">
                     No metrics yet. Add bookings to see live stats.
                   </div>
                 )}
               </div>
+
+              {/* Duplicate bookings check (future bookings only, from tomorrow onward) */}
+              {overview &&
+                duplicatesSummary &&
+                (duplicatesSummary.referenceGroups > 0 ||
+                  duplicatesSummary.customerSlotGroups > 0) && (
+                <div
+                  className={
+                    duplicatesSummary &&
+                    (duplicatesSummary.referenceGroups > 0 || duplicatesSummary.customerSlotGroups > 0)
+                      ? "rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+                      : "rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                  }
+                >
+                  <h3 className="font-bold text-slate-900 text-sm mb-2">Duplicate bookings check</h3>
+                  {overviewLoading && duplicatesSummary === null ? (
+                    <p className="text-xs text-slate-500">Checking…</p>
+                  ) : duplicatesSummary ? (
+                    duplicatesSummary.referenceGroups === 0 &&
+                    duplicatesSummary.customerSlotGroups === 0 ? (
+                      <p className="text-xs text-slate-600">
+                        No duplicates detected in the last 20k bookings. Same reference or same customer + date + time would be flagged here.
+                      </p>
+                    ) : (
+                      <div className="text-xs text-amber-800 space-y-1">
+                        <p>
+                          <strong>{duplicatesSummary.referenceGroups}</strong> duplicate reference group
+                          {duplicatesSummary.referenceGroups !== 1 ? "s" : ""} (same reference used more than once).
+                        </p>
+                        <p>
+                          <strong>{duplicatesSummary.customerSlotGroups}</strong> duplicate customer/slot group
+                          {duplicatesSummary.customerSlotGroups !== 1 ? "s" : ""} (same email + date + time).
+                        </p>
+                        {duplicatesSummary.truncated && (
+                          <p className="text-amber-700">Scan was limited to 20k rows. Run <code className="bg-amber-100 px-1 rounded">sql/check_booking_duplicates.sql</code> in Supabase for a full report.</p>
+                        )}
+                        {duplicatesSummary.customerSlotGroups > 0 && (
+                            <>
+                              <p className="text-amber-800 mt-2">
+                                Duplicate customers (name · email · date time):
+                              </p>
+                              <ul className="list-disc list-inside text-amber-800">
+                                {duplicatesSummary.byCustomerSlot
+                                  ?.slice(0, 3)
+                                  .map((group, index) => (
+                                    <li key={index}>{group.sample ?? group.key}</li>
+                                  ))}
+                                {duplicatesSummary.byCustomerSlot &&
+                                  duplicatesSummary.byCustomerSlot.length > 3 && (
+                                    <li>and more…</li>
+                                  )}
+                              </ul>
+                              <p className="text-amber-800 mt-2">
+                                To merge duplicate customer/slot groups into one booking per slot, run{" "}
+                                <code className="bg-amber-100 px-1 rounded">sql/merge_duplicate_bookings.sql</code> in the Supabase SQL Editor (back up first).
+                              </p>
+                            </>
+                          )}
+                      </div>
+                    )
+                    ) : (
+                      <p className="text-xs text-slate-500">Could not run duplicate check.</p>
+                    )}
+                </div>
+              )}
 
               {/* Chart & Recent Activity Placeholder */}
               <div className="grid lg:grid-cols-3 gap-8">
@@ -1617,6 +2105,141 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       </p>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* Upcoming (next 7 days from tomorrow) Table */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                  <h2 className="font-bold text-slate-900">Upcoming (next 7 days)</h2>
+                  {overview && overview.upcomingBookings?.length > 0 && (
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span>
+                        Page {upcomingBookingsPage} of{" "}
+                        {Math.max(1, Math.ceil((overview.upcomingBookings?.length ?? 0) / 10))}
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                          disabled={upcomingBookingsPage === 1}
+                          onClick={() => setUpcomingBookingsPage((p) => Math.max(1, p - 1))}
+                        >
+                          Prev
+                        </button>
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded-lg border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                          disabled={
+                            !overview ||
+                            upcomingBookingsPage >= Math.ceil((overview.upcomingBookings?.length ?? 0) / 10)
+                          }
+                          onClick={() =>
+                            setUpcomingBookingsPage((p) =>
+                              overview
+                                ? Math.min(Math.ceil((overview.upcomingBookings?.length ?? 0) / 10), p + 1)
+                                : p
+                            )
+                          }
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                      <tr>
+                        <th className="px-6 py-4">ID</th>
+                        <th className="px-6 py-4">Customer</th>
+                        <th className="px-6 py-4">Cleaner</th>
+                        <th className="px-6 py-4">Date & Time</th>
+                        <th className="px-6 py-4">Amount</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 text-sm">
+                      {overview && overview.upcomingBookings?.length > 0 ? (
+                        (overview.upcomingBookings ?? [])
+                          .slice((upcomingBookingsPage - 1) * 10, upcomingBookingsPage * 10)
+                          .map((booking) => (
+                            <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-6 py-4 font-mono text-xs text-slate-500">
+                                {formatBookingCode(booking.id)}
+                              </td>
+                              <td className="px-6 py-4 font-bold text-slate-900">{booking.customer}</td>
+                              <td className="px-6 py-4 text-slate-600">{booking.cleaner ?? "—"}</td>
+                              <td className="px-6 py-4 text-slate-500">
+                                {booking.date}
+                                {booking.time ? `, ${booking.time}` : ""}
+                              </td>
+                              <td className="px-6 py-4 font-semibold text-slate-900">
+                                {`R${booking.totalAmount.toLocaleString("en-ZA")}`}
+                              </td>
+                              <td className="px-6 py-4">
+                                <Badge status={booking.status ?? "upcoming"} />
+                              </td>
+                              <td className="px-6 py-4 text-right relative">
+                                <button
+                                  type="button"
+                                  className="p-1 hover:bg-slate-200 rounded-lg"
+                                  onClick={() =>
+                                    setOpenBookingActionsId((current) =>
+                                      current === booking.id ? null : booking.id
+                                    )
+                                  }
+                                  aria-label="Booking actions"
+                                >
+                                  <MoreVertical className="w-4 h-4 text-slate-400" />
+                                </button>
+                                {openBookingActionsId === booking.id && (
+                                  <div className="absolute right-4 top-10 z-10 w-40 bg-white border border-slate-200 rounded-xl shadow-lg text-xs text-slate-700">
+                                    <button
+                                      className="w-full text-left px-3 py-2 hover:bg-slate-50"
+                                      type="button"
+                                      onClick={() => handleBookingAction(booking.id, "view")}
+                                    >
+                                      View booking
+                                    </button>
+                                    <button
+                                      className="w-full text-left px-3 py-2 hover:bg-slate-50"
+                                      type="button"
+                                      onClick={() => handleBookingAction(booking.id, "complete")}
+                                    >
+                                      Mark as completed
+                                    </button>
+                                    <button
+                                      className="w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50"
+                                      type="button"
+                                      onClick={() => handleBookingAction(booking.id, "cancel")}
+                                    >
+                                      Cancel booking
+                                    </button>
+                                    <button
+                                      className="w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50 border-t border-slate-100"
+                                      type="button"
+                                      disabled={bookingDeleteLoading}
+                                      onClick={() => handleBookingAction(booking.id, "delete")}
+                                    >
+                                      Delete booking
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-6 text-center text-xs text-slate-500">
+                            No upcoming bookings this week (Mon–Sun).
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -1754,6 +2377,16 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                                   }
                                 >
                                     Cancel booking
+                                  </button>
+                                  <button
+                                    className="w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50 border-t border-slate-100"
+                                    type="button"
+                                    disabled={bookingDeleteLoading}
+                                    onClick={() =>
+                                      handleBookingAction(booking.id, "delete")
+                                    }
+                                  >
+                                    Delete booking
                                   </button>
                                 </div>
                               )}
@@ -2318,7 +2951,23 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       Filter and search across all upcoming and past bookings
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3 items-center">
+                    <select
+                      className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                      value={bookingsPeriodFilter}
+                      onChange={(e) => {
+                        setBookingsPeriodFilter(e.target.value);
+                        setBookingsPage(1);
+                      }}
+                      aria-label="Filter by date range"
+                    >
+                      <option value="">All time</option>
+                      <option value="today">Today</option>
+                      <option value="week">This week (7 days)</option>
+                      <option value="month">This month</option>
+                      <option value="90days">Last 90 days</option>
+                      <option value="year">This year</option>
+                    </select>
                     <select
                       className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
                       value={bookingsStatusFilter}
@@ -2350,6 +2999,13 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       <option value="move_out">Move Out</option>
                       <option value="carpet">Carpet</option>
                     </select>
+                    <button
+                      type="button"
+                      onClick={handleDownloadBookingsCsv}
+                      className="text-xs font-semibold px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    >
+                      Download CSV
+                    </button>
                   </div>
                 </div>
                 {bookingsListError && (
@@ -2357,10 +3013,81 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                     {bookingsListError}
                   </div>
                 )}
+                {selectedBookingIds.length > 0 && (
+                  <div className="mx-6 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100">
+                    <span className="text-sm font-medium text-slate-700">
+                      {selectedBookingIds.length} booking{selectedBookingIds.length !== 1 ? "s" : ""} selected
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 min-w-[120px]"
+                        value={bulkStatusValue}
+                        onChange={(e) => setBulkStatusValue(e.target.value)}
+                        aria-label="Bulk status"
+                      >
+                        <option value="">Update status…</option>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="failed">Failed</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        onClick={handleBulkStatusUpdate}
+                        disabled={bulkStatusUpdateLoading || !bulkStatusValue}
+                      >
+                        {bulkStatusUpdateLoading ? "Updating…" : "Update status"}
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        onClick={() => setSelectedBookingIds([])}
+                      >
+                        Clear selection
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                        onClick={() => setBulkDeleteBookingsOpen(true)}
+                      >
+                        Delete selected
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
                       <tr>
+                        <th className="px-4 py-4 w-10">
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredBookingsList.length > 0 &&
+                              filteredBookingsList.every((b) => selectedBookingIds.includes(b.id))
+                            }
+                            ref={(el) => {
+                              if (el) el.indeterminate = filteredBookingsList.length > 0 && selectedBookingIds.length > 0 && !filteredBookingsList.every((b) => selectedBookingIds.includes(b.id));
+                            }}
+                            onChange={() => {
+                              if (filteredBookingsList.every((b) => selectedBookingIds.includes(b.id))) {
+                                const onPage = new Set(filteredBookingsList.map((b) => b.id));
+                                setSelectedBookingIds((prev) => prev.filter((id) => !onPage.has(id)));
+                              } else {
+                                const onPage = filteredBookingsList.map((b) => b.id);
+                                setSelectedBookingIds((prev) => {
+                                  const set = new Set(prev);
+                                  onPage.forEach((id) => set.add(id));
+                                  return Array.from(set);
+                                });
+                              }
+                            }}
+                            aria-label="Select all on page"
+                            className="rounded border-slate-300"
+                          />
+                        </th>
                         <th className="px-6 py-4">ID</th>
                         <th className="px-6 py-4">Customer</th>
                         <th className="px-6 py-4">Service</th>
@@ -2377,7 +3104,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       {bookingsListLoading ? (
                         <tr>
                           <td
-                            colSpan={10}
+                            colSpan={11}
                             className="px-6 py-8 text-center text-xs text-slate-500"
                           >
                             Loading bookings...
@@ -2386,7 +3113,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       ) : filteredBookingsList.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={10}
+                            colSpan={11}
                             className="px-6 py-8 text-center text-xs text-slate-500"
                           >
                             No bookings found. Create a booking or adjust filters.
@@ -2395,6 +3122,21 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       ) : (
                         filteredBookingsList.map((booking) => (
                           <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-4 py-4 w-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedBookingIds.includes(booking.id)}
+                                onChange={() => {
+                                  setSelectedBookingIds((prev) =>
+                                    prev.includes(booking.id)
+                                      ? prev.filter((id) => id !== booking.id)
+                                      : [...prev, booking.id]
+                                  );
+                                }}
+                                aria-label={`Select booking ${booking.id}`}
+                                className="rounded border-slate-300"
+                              />
+                            </td>
                             <td className="px-6 py-4 font-mono text-xs text-slate-500">
                               {formatBookingCode(booking.id)}
                             </td>
@@ -2459,6 +3201,16 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                                     }
                                   >
                                     Cancel booking
+                                  </button>
+                                  <button
+                                    className="w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50 border-t border-slate-100"
+                                    type="button"
+                                    disabled={bookingDeleteLoading}
+                                    onClick={() =>
+                                      handleBookingAction(booking.id, "delete")
+                                    }
+                                  >
+                                    Delete booking
                                   </button>
                                 </div>
                               )}
@@ -2694,6 +3446,39 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                                   title="Copy email"
                                 >
                                   <MoreVertical className="w-4 h-4 text-slate-400" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-xs font-semibold text-rose-600 hover:underline disabled:opacity-50"
+                                  disabled={customerDeleteLoading === customer.email}
+                                  onClick={async () => {
+                                    if (!customer.email) return;
+                                    if (!window.confirm("Permanently delete this customer? Their bookings will remain. This cannot be undone.")) return;
+                                    setCustomerDeleteLoading(customer.email);
+                                    try {
+                                      const res = await fetch(
+                                        `/api/admin/customers/${encodeURIComponent(customer.email)}`,
+                                        { method: "DELETE" }
+                                      );
+                                      const data = await res.json().catch(() => ({}));
+                                      if (!res.ok) {
+                                        throw new Error((data as { error?: string }).error ?? "Failed to delete customer.");
+                                      }
+                                      setCustomersList((list) =>
+                                        list.filter((c) => c.email !== customer.email)
+                                      );
+                                      if (openCustomerEmail === customer.email) {
+                                        setOpenCustomerEmail(null);
+                                      }
+                                      setCustomersRefreshKey((k) => k + 1);
+                                    } catch (err) {
+                                      alert(err instanceof Error ? err.message : "Failed to delete customer.");
+                                    } finally {
+                                      setCustomerDeleteLoading(null);
+                                    }
+                                  }}
+                                >
+                                  Delete
                                 </button>
                                 {copiedCustomerEmail === customer.email && (
                                   <span className="text-[10px] font-semibold text-emerald-600">
@@ -3144,6 +3929,70 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
           )}
         </div>
 
+        {/* Delete booking confirmation */}
+        {confirmDeleteBookingId && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                Delete booking
+              </h3>
+              <p className="text-sm text-slate-600 mb-6">
+                Permanently delete this booking? This cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                  onClick={() => setConfirmDeleteBookingId(null)}
+                  disabled={bookingDeleteLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors disabled:opacity-50"
+                  onClick={handleConfirmDeleteBooking}
+                  disabled={bookingDeleteLoading}
+                >
+                  {bookingDeleteLoading ? "Deleting…" : "Delete booking"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk delete bookings confirmation */}
+        {bulkDeleteBookingsOpen && selectedBookingIds.length > 0 && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                Delete {selectedBookingIds.length} booking{selectedBookingIds.length !== 1 ? "s" : ""}
+              </h3>
+              <p className="text-sm text-slate-600 mb-6">
+                Permanently delete the selected bookings? This cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                  onClick={() => setBulkDeleteBookingsOpen(false)}
+                  disabled={bulkDeleteBookingsLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors disabled:opacity-50"
+                  onClick={handleBulkDeleteBookings}
+                  disabled={bulkDeleteBookingsLoading}
+                >
+                  {bulkDeleteBookingsLoading ? "Deleting…" : "Delete selected"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Booking details dialog for "View booking" */}
         {activeDialog.type === "view" && activeDialog.bookingId && (
           <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
@@ -3308,6 +4157,43 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                           ).toLocaleString("en-ZA")
                         : "—"}
                     </span>
+                  </div>
+                  <div className="pt-3 mt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Assigned cleaner</span>
+                      <span className="font-medium text-slate-800">
+                        {fullBooking.cleaner_id
+                          ? bookingDialogCleaners.find((c) => c.id === fullBooking.cleaner_id)?.name ?? "—"
+                          : "None"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={assignCleanerId ?? ""}
+                        onChange={(e) =>
+                          setAssignCleanerId(e.target.value || null)
+                        }
+                        className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm min-w-[160px]"
+                      >
+                        <option value="">No cleaner</option>
+                        {bookingDialogCleaners.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={assignCleanerSaving}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        onClick={handleAssignCleanerToBooking}
+                      >
+                        {assignCleanerSaving ? "Saving…" : "Assign cleaner"}
+                      </button>
+                    </div>
+                    {assignCleanerError && (
+                      <p className="text-xs text-rose-600">{assignCleanerError}</p>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -3574,14 +4460,50 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 <h2 className="text-lg font-semibold text-slate-900">
                   Customer profile
                 </h2>
-                <button
-                  type="button"
-                  className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
-                  onClick={() => setOpenCustomerEmail(null)}
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {customerDetail && (
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50"
+                      disabled={customerDeleteLoading === openCustomerEmail}
+                      onClick={async () => {
+                        if (!openCustomerEmail) return;
+                        if (!window.confirm("Permanently delete this customer? Their bookings will remain. This cannot be undone.")) return;
+                        setCustomerDeleteLoading(openCustomerEmail);
+                        try {
+                          const res = await fetch(
+                            `/api/admin/customers/${encodeURIComponent(openCustomerEmail)}`,
+                            { method: "DELETE" }
+                          );
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok) {
+                            throw new Error((data as { error?: string }).error ?? "Failed to delete customer.");
+                          }
+                          setCustomersList((list) =>
+                            list.filter((c) => c.email !== openCustomerEmail)
+                          );
+                          setOpenCustomerEmail(null);
+                          setCustomerDetail(null);
+                          setCustomersRefreshKey((k) => k + 1);
+                        } catch (err) {
+                          alert(err instanceof Error ? err.message : "Failed to delete customer.");
+                        } finally {
+                          setCustomerDeleteLoading(null);
+                        }
+                      }}
+                    >
+                      Delete customer
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                    onClick={() => setOpenCustomerEmail(null)}
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {customerDetailLoading ? (
@@ -3797,19 +4719,64 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 <h2 className="text-lg font-semibold text-slate-900">
                   Cleaner profile
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {profileCleanerDetail && !profileCleanerLoading && (
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
-                      onClick={() => {
-                        setIsEditingCleanerProfile((v) => !v);
-                        setEditCleanerError(null);
-                        setEditCleanerAvatarFile(null);
-                      }}
-                    >
-                      {isEditingCleanerProfile ? "Stop editing" : "Edit"}
-                    </button>
+                    <>
+                      {profileCleanerDetail.verification_status !== "verified" && (
+                        <button
+                          type="button"
+                          className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                          onClick={() => handleSetCleanerStatus("verified")}
+                        >
+                          Activate
+                        </button>
+                      )}
+                      {profileCleanerDetail.verification_status === "verified" && (
+                        <button
+                          type="button"
+                          className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-amber-300 text-amber-700 hover:bg-amber-50"
+                          onClick={() => handleSetCleanerStatus("suspended")}
+                        >
+                          Deactivate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
+                        onClick={() => {
+                          setIsEditingCleanerProfile((v) => !v);
+                          setEditCleanerError(null);
+                          setEditCleanerAvatarFile(null);
+                        }}
+                      >
+                        {isEditingCleanerProfile ? "Stop editing" : "Edit"}
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50"
+                        disabled={cleanerDeleteLoading}
+                        onClick={async () => {
+                          if (!profileCleanerId) return;
+                          if (!window.confirm("Permanently delete this cleaner? Their bookings will be unassigned. This cannot be undone.")) return;
+                          setCleanerDeleteLoading(true);
+                          try {
+                            const res = await fetch(`/api/admin/cleaners/${profileCleanerId}`, { method: "DELETE" });
+                            if (!res.ok) throw new Error("Failed to delete");
+                            setProfileCleanerId(null);
+                            setProfileCleanerDetail(null);
+                            setProfileCleanerError(null);
+                            setIsEditingCleanerProfile(false);
+                            setCleanersRefreshKey((k) => k + 1);
+                          } catch {
+                            alert("Failed to delete cleaner.");
+                          } finally {
+                            setCleanerDeleteLoading(false);
+                          }
+                        }}
+                      >
+                        Delete cleaner
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"
@@ -3821,6 +4788,8 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       setIsEditingCleanerProfile(false);
                       setEditCleanerAvatarFile(null);
                       setEditCleanerError(null);
+                      setResetPasswordForm({ newPassword: "", confirmPassword: "" });
+                      setResetPasswordError(null);
                     }}
                     aria-label="Close"
                   >
@@ -3962,6 +4931,42 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                           />
                         </div>
                         <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                            Working days
+                          </label>
+                          <div className="flex flex-wrap gap-3">
+                            {[
+                              { d: 0, label: "Sun" },
+                              { d: 1, label: "Mon" },
+                              { d: 2, label: "Tue" },
+                              { d: 3, label: "Wed" },
+                              { d: 4, label: "Thu" },
+                              { d: 5, label: "Fri" },
+                              { d: 6, label: "Sat" },
+                            ].map(({ d, label }) => (
+                              <label
+                                key={d}
+                                className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={editCleanerForm.workingDays.includes(d)}
+                                  onChange={(e) => {
+                                    setEditCleanerForm((f) => ({
+                                      ...f,
+                                      workingDays: e.target.checked
+                                        ? [...f.workingDays, d].sort((a, b) => a - b)
+                                        : f.workingDays.filter((x) => x !== d),
+                                    }));
+                                  }}
+                                  className="rounded border-slate-300"
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                             Profile photo
                           </label>
@@ -3990,6 +4995,9 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                                   workingAreasText: (profileCleanerDetail.working_areas ?? []).join(
                                     ", "
                                   ),
+                                  workingDays: Array.isArray(profileCleanerDetail.working_days)
+                                    ? profileCleanerDetail.working_days
+                                    : [],
                                   unavailableDatesText: (
                                     profileCleanerDetail.unavailable_dates ?? []
                                   ).join(", "),
@@ -4103,6 +5111,62 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                         </p>
                       </div>
                     )}
+
+                    {(profileCleanerDetail.working_days?.length ?? 0) > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Working days
+                        </p>
+                        <p className="text-sm text-slate-800">
+                          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+                            .filter((_, i) => (profileCleanerDetail.working_days ?? []).includes(i))
+                            .join(", ") || "—"}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="pt-3 mt-3 border-t border-slate-100 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Reset password
+                      </p>
+                      <div className="flex flex-wrap items-end gap-2">
+                        <input
+                          type="password"
+                          placeholder="New password"
+                          value={resetPasswordForm.newPassword}
+                          onChange={(e) =>
+                            setResetPasswordForm((f) => ({
+                              ...f,
+                              newPassword: e.target.value,
+                            }))
+                          }
+                          className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm w-40"
+                        />
+                        <input
+                          type="password"
+                          placeholder="Confirm"
+                          value={resetPasswordForm.confirmPassword}
+                          onChange={(e) =>
+                            setResetPasswordForm((f) => ({
+                              ...f,
+                              confirmPassword: e.target.value,
+                            }))
+                          }
+                          className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm w-40"
+                        />
+                        <button
+                          type="button"
+                          disabled={resetPasswordLoading}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50"
+                          onClick={handleResetCleanerPassword}
+                        >
+                          {resetPasswordLoading ? "Resetting…" : "Reset password"}
+                        </button>
+                      </div>
+                      {resetPasswordError && (
+                        <p className="text-xs text-rose-600">{resetPasswordError}</p>
+                      )}
+                    </div>
 
                     <div className="space-y-3">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">

@@ -3,12 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { status } = useSession();
+  const pathname = usePathname();
+
+  const isAuthenticated = status === "authenticated";
+  const isHomePage = pathname === "/";
 
   const navLinks = [
     { name: "Services", href: "#services" },
@@ -30,7 +37,9 @@ const Navbar = () => {
               height={36}
               className="h-9 w-9 object-contain"
             />
-            <span className="font-display font-bold text-xl text-foreground">Shalean Cleaning Services</span>
+            <span className="font-display font-bold text-xl text-foreground">
+              Shalean Cleaning Services
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -48,7 +57,10 @@ const Navbar = () => {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <a href="tel:+1234567890" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <a
+              href="tel:+1234567890"
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
               <Phone className="w-4 h-4" />
               <span className="text-sm font-medium">Contact Us</span>
             </a>
@@ -90,6 +102,39 @@ const Navbar = () => {
                   {link.name}
                 </a>
               ))}
+
+              {isAuthenticated && isHomePage && (
+                <div className="flex flex-col gap-2 pt-4 border-t border-border">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Dashboards
+                  </span>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <Link href="/customer">Customer Dashboard</Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <Link href="/cleaner">Cleaner Dashboard</Link>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <Link href="/admin">Admin Dashboard</Link>
+                  </Button>
+                </div>
+              )}
+
               <div className="flex flex-col gap-2 pt-4 border-t border-border">
                 <Button variant="outline" className="w-full">
                   Log In

@@ -1096,11 +1096,11 @@ export const ShaleanWebsite = () => {
                 Get Quote
               </button>
               {isAuthenticated && (
-                <div className="hidden sm:flex items-center gap-2">
+                <div className="hidden lg:flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setAvatarMenuOpen((open) => !open)}
-                    className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center text-sm font-semibold border border-slate-200 hover:border-blue-400 transition-colors"
+                    className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center text-sm font-semibold border border-slate-200 hover:border-blue-400 transition-colors flex-shrink-0"
                   >
                     {session?.user?.name
                       ? session.user.name.charAt(0).toUpperCase()
@@ -1109,7 +1109,7 @@ export const ShaleanWebsite = () => {
                       : "U"}
                   </button>
                   {avatarMenuOpen && (
-                    <div className="absolute right-0 top-11 mt-2 w-44 rounded-xl bg-white text-slate-900 shadow-lg border border-slate-100 py-2 text-sm z-50">
+                    <div className="absolute right-0 top-11 mt-2 w-44 rounded-xl bg-white text-slate-900 shadow-lg border border-slate-100 py-2 text-sm z-[100]">
                       <button
                         onClick={() => {
                           setAvatarMenuOpen(false);
@@ -1155,7 +1155,7 @@ export const ShaleanWebsite = () => {
                 </div>
               )}
               <button
-                className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex-shrink-0"
                 onClick={() => setMobileMenuOpen(true)}
               >
                 <Menu className="w-5 h-5" />
@@ -1176,13 +1176,29 @@ export const ShaleanWebsite = () => {
             className="fixed inset-0 z-[60] bg-black text-white p-6 flex flex-col"
           >
             <div className="flex justify-between items-center mb-10">
-              <Image
-                src="/logo.png"
-                alt="Shalean"
-                width={32}
-                height={32}
-                className="h-8 w-8 object-contain"
-              />
+              <div className="flex items-center gap-3">
+                {isAuthenticated && (
+                  <div
+                    className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center text-base font-semibold border-2 border-blue-400/50 flex-shrink-0"
+                    aria-hidden
+                  >
+                    {session?.user?.name
+                      ? session.user.name.charAt(0).toUpperCase()
+                      : session?.user?.email
+                      ? session.user.email.charAt(0).toUpperCase()
+                      : "U"}
+                  </div>
+                )}
+                {!isAuthenticated && (
+                  <Image
+                    src="/logo.png"
+                    alt="Shalean"
+                    width={32}
+                    height={32}
+                    className="h-8 w-8 object-contain"
+                  />
+                )}
+              </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20"
@@ -1195,6 +1211,34 @@ export const ShaleanWebsite = () => {
               <Link href="/about" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">About</Link>
               <Link href="/services" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Service</Link>
               <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Pricing</Link>
+              {isAuthenticated && (
+                <>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      const role = (session?.user as any)?.role;
+                      if (role === "admin") window.location.href = "/admin";
+                      else if (role === "customer") window.location.href = "/customer";
+                      else if (role === "cleaner") window.location.href = "/cleaner";
+                      else navigate("home");
+                    }}
+                    className="flex items-center gap-2 font-medium text-white/80 hover:text-white transition-colors"
+                  >
+                    <LayoutDashboard className="w-5 h-5" />
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      signOut({ callbackUrl: "/" });
+                    }}
+                    className="flex items-center gap-2 font-medium text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    Logout
+                  </button>
+                </>
+              )}
               {!isAuthenticated && (
                 <button
                   onClick={() => {
