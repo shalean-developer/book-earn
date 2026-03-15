@@ -150,6 +150,21 @@ function shortAddress(address: string | null | undefined) {
   return `${parts[0].trim()}, ${parts[1].trim()}`;
 }
 
+function customerFriendlyStatus(status: string | null | undefined): string {
+  const s = String(status || "").toLowerCase();
+  const labels: Record<string, string> = {
+    pending: "Pending",
+    confirmed: "Confirmed",
+    on_my_way: "On the way",
+    arrived: "Arrived",
+    in_progress: "In progress",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    failed: "Failed",
+  };
+  return labels[s] || (status || "Pending");
+}
+
 function mapBookingToCard(b: CustomerBooking): Booking {
   // Create a human-friendly public reference like SC09383893
   const formatPublicReference = (raw: string | null | undefined) => {
@@ -235,12 +250,12 @@ const BookingCard = ({
             className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 ${
               s === "completed"
                 ? "bg-emerald-50 text-emerald-600"
-                : s === "cancelled"
+                : s === "cancelled" || s === "failed"
                   ? "bg-rose-50 text-rose-600"
                   : "bg-blue-50 text-blue-600"
             }`}
           >
-            {booking.status}
+            {customerFriendlyStatus(booking.status)}
           </span>
             );
           })()}
@@ -448,6 +463,9 @@ export const CustomerDashboard = ({
   const [messageText, setMessageText] = useState("");
   const [messageSaving, setMessageSaving] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+  type MessageItem = { id: string; senderType: "customer" | "cleaner"; body: string; createdAt: string };
+  const [messageList, setMessageList] = useState<MessageItem[]>([]);
+  const [messageListLoading, setMessageListLoading] = useState(false);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number>(0);
   const [walletBalanceFormatted, setWalletBalanceFormatted] = useState<string>("R0");
   const [walletLoading, setWalletLoading] = useState(false);
@@ -545,6 +563,31 @@ export const CustomerDashboard = ({
   };
 
   useEffect(() => {
+    if (!messageBooking?.bookingId) {
+      setMessageList([]);
+      return;
+    }
+    let cancelled = false;
+    setMessageListLoading(true);
+    fetch(`/api/customer/messages?bookingId=${encodeURIComponent(messageBooking.bookingId)}`)
+      .then((res) => (res.ok ? res.json() : Promise.resolve({ messages: [] })))
+      .then((data: { messages?: MessageItem[] }) => {
+        if (!cancelled && Array.isArray(data.messages)) {
+          setMessageList(data.messages);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMessageList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMessageListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [messageBooking?.bookingId]);
+
+  useEffect(() => {
     let cancelled = false;
     async function loadProfile() {
       try {
@@ -602,10 +645,28 @@ export const CustomerDashboard = ({
   }, []);
 
   const upcomingCards = useMemo(() => {
-    const upcoming = bookings.filter((b) =>
-      ["pending", "confirmed"].includes(String(b.status || "").toLowerCase()),
-    );
-    return upcoming.map(mapBookingToCard);
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    const upcoming = bookings.filter((b) => {
+      const status = String(b.status || "").toLowerCase();
+      const isActiveStatus = [
+        "pending",
+        "confirmed",
+        "on_my_way",
+        "arrived",
+        "in_progress",
+      ].includes(status);
+      if (!isActiveStatus) return false;
+      const dateStr = (b.date || "").slice(0, 10);
+      return dateStr >= todayStr;
+    });
+    return upcoming
+      .sort((a, b) => {
+        const ad = new Date(`${a.date}T${a.time || "09:00"}`).getTime();
+        const bd = new Date(`${b.date}T${b.time || "09:00"}`).getTime();
+        return ad - bd;
+      })
+      .map(mapBookingToCard);
   }, [bookings]);
 
   const pastCards = useMemo(() => {
@@ -619,9 +680,19 @@ export const CustomerDashboard = ({
 
   const nextPayment = useMemo(() => {
     if (!bookings.length) return null;
-    const upcoming = bookings.filter((b) =>
-      ["pending", "confirmed"].includes(String(b.status || "").toLowerCase()),
-    );
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const upcoming = bookings.filter((b) => {
+      const status = String(b.status || "").toLowerCase();
+      const isActive = [
+        "pending",
+        "confirmed",
+        "on_my_way",
+        "arrived",
+        "in_progress",
+      ].includes(status);
+      if (!isActive) return false;
+      return ((b.date || "").slice(0, 10)) >= todayStr;
+    });
     if (!upcoming.length) return null;
     const soonest = [...upcoming].sort((a, b) => {
       const ad = new Date(`${a.date}T${a.time || "09:00"}`).getTime();
@@ -2510,71 +2581,117 @@ export const CustomerDashboard = ({
                   ×
                 </button>
               </div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">
-                Your message
-              </label>
-              <textarea
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 min-h-[100px]"
-                placeholder="Ask about access, parking, special instructions, or anything else you need."
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-              />
-              <div className="mt-3 h-4 text-[11px] text-rose-600">
-                {messageError ? messageError : null}
-              </div>
-              <div className="mt-3 flex items-center justify-end gap-2">
-                <button
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => {
-                    setMessageBooking(null);
-                    setMessageError(null);
-                    setMessageText("");
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={messageSaving || !messageText.trim()}
-                  onClick={async () => {
-                    if (!messageBooking || !messageText.trim()) return;
-                    try {
-                      setMessageSaving(true);
-                      setMessageError(null);
-                      const res = await fetch("/api/customer/messages", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                          bookingId: messageBooking.bookingId,
-                          message: messageText.trim(),
-                        }),
-                      });
-                      if (!res.ok) {
-                        const body = (await res.json().catch(() => null)) as
-                          | { error?: string }
-                          | null;
-                        throw new Error(
-                          body?.error || "We could not send your message. Please try again.",
-                        );
-                      }
+
+              <div className="flex-1 min-h-0 flex flex-col gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden flex flex-col min-h-[180px] max-h-[280px]">
+                  <div className="p-3 overflow-y-auto flex-1 space-y-2">
+                    {messageListLoading ? (
+                      <p className="text-sm text-slate-400 text-center py-4">Loading messages…</p>
+                    ) : messageList.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-4">No messages yet. Send one below.</p>
+                    ) : (
+                      messageList.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`flex ${m.senderType === "customer" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
+                              m.senderType === "customer"
+                                ? "bg-blue-600 text-white rounded-br-md"
+                                : "bg-white border border-slate-200 text-slate-800 rounded-bl-md"
+                            }`}
+                          >
+                            {m.senderType === "cleaner" && (
+                              <p className="text-[10px] font-semibold text-slate-500 mb-0.5">Pro</p>
+                            )}
+                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                            <p className={`text-[10px] mt-1 ${m.senderType === "customer" ? "text-blue-200" : "text-slate-400"}`}>
+                              {m.createdAt
+                                ? new Date(m.createdAt).toLocaleString("en-ZA", {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : ""}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <label className="block text-xs font-semibold text-slate-500">Your message</label>
+                <textarea
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 min-h-[80px]"
+                  placeholder="Ask about access, parking, special instructions, or anything else you need."
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                />
+                <div className="h-4 text-[11px] text-rose-600">
+                  {messageError ? messageError : null}
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
                       setMessageBooking(null);
+                      setMessageError(null);
                       setMessageText("");
-                    } catch (err) {
-                      console.error("Failed to send message", err);
-                      setMessageError(
-                        err instanceof Error
-                          ? err.message
-                          : "We could not send your message. Please try again.",
-                      );
-                    } finally {
-                      setMessageSaving(false);
-                    }
-                  }}
-                >
-                  {messageSaving ? "Sending…" : "Send message"}
-                </button>
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={messageSaving || !messageText.trim()}
+                    onClick={async () => {
+                      if (!messageBooking || !messageText.trim()) return;
+                      const text = messageText.trim();
+                      try {
+                        setMessageSaving(true);
+                        setMessageError(null);
+                        const res = await fetch("/api/customer/messages", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            bookingId: messageBooking.bookingId,
+                            message: text,
+                          }),
+                        });
+                        if (!res.ok) {
+                          const body = (await res.json().catch(() => null)) as
+                            | { error?: string }
+                            | null;
+                          throw new Error(
+                            body?.error || "We could not send your message. Please try again.",
+                          );
+                        }
+                        setMessageList((prev) => [
+                          ...prev,
+                          {
+                            id: `temp-${Date.now()}`,
+                            senderType: "customer" as const,
+                            body: text,
+                            createdAt: new Date().toISOString(),
+                          },
+                        ]);
+                        setMessageText("");
+                      } catch (err) {
+                        setMessageError(
+                          err instanceof Error
+                            ? err.message
+                            : "We could not send your message. Please try again.",
+                        );
+                      } finally {
+                        setMessageSaving(false);
+                      }
+                    }}
+                  >
+                    {messageSaving ? "Sending…" : "Send message"}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

@@ -437,6 +437,13 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
   const [cashOutModalOpen, setCashOutModalOpen] = useState(false);
   const [cashOutLoading, setCashOutLoading] = useState(false);
   const [cashOutError, setCashOutError] = useState<string | null>(null);
+  const [messageJob, setMessageJob] = useState<Job | null>(null);
+  type MessageItem = { id: string; senderType: "customer" | "cleaner"; body: string; createdAt: string };
+  const [messageList, setMessageList] = useState<MessageItem[]>([]);
+  const [messageListLoading, setMessageListLoading] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [messageSaving, setMessageSaving] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   type CleanerProfile = {
     name: string | null;
@@ -559,6 +566,32 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (!messageJob?.id) {
+      setMessageList([]);
+      return;
+    }
+    let cancelled = false;
+    setMessageListLoading(true);
+    setMessageError(null);
+    fetch(`/api/cleaner/messages?bookingId=${encodeURIComponent(messageJob.id)}`)
+      .then((res) => (res.ok ? res.json() : Promise.resolve({ messages: [] })))
+      .then((data: { messages?: MessageItem[] }) => {
+        if (!cancelled && Array.isArray(data.messages)) {
+          setMessageList(data.messages);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMessageList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMessageListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [messageJob?.id]);
+
   const unreadNotifications = notifications.filter((n) => !n.read).length;
   const handleToggleNotifications = () => {
     setNotificationsOpen((open) => !open);
@@ -574,62 +607,6 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
       current.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
   };
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Loading your cleaner session…</p>
-      </div>
-    );
-  }
-
-  const sessionUser = data?.user as
-    | (typeof data.user & { role?: string; phone?: string })
-    | undefined;
-
-  if (!sessionUser || sessionUser.role !== "cleaner") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">
-          You must be logged in as a cleaner to view this dashboard.
-        </p>
-      </div>
-    );
-  }
-
-  const displayName =
-    payload?.cleaner.name ||
-    sessionUser.name ||
-    (sessionUser.phone ? `Cleaner ${sessionUser.phone}` : "Cleaner");
-
-  const rating = payload?.cleaner.rating ?? null;
-  const reviews = payload?.cleaner.reviews ?? 0;
-
-  const mapApiStatus = (s: string | null): JobStatus => {
-    if (!s) return "assigned";
-    const lower = s.toLowerCase();
-    if (lower === "on_my_way") return "on_my_way";
-    if (lower === "arrived") return "arrived";
-    if (lower === "in_progress") return "in-progress";
-    if (lower === "completed") return "completed";
-    if (lower === "cancelled") return "cancelled";
-    return "assigned";
-  };
-
-  const todayJobs: Job[] =
-    payload?.today.jobs.map((j) => ({
-      id: j.id,
-      customer: j.customer,
-      address: j.address || "Customer address",
-      time: j.time,
-      service: j.service || "Cleaning",
-      duration: formatEstimatedDuration(j.estimatedDurationMinutes ?? 210),
-      status: mapApiStatus(j.status),
-      earnings: formatCurrency(j.totalAmount),
-      notes: undefined,
-      cleanerRating: j.cleanerRating ?? null,
-      bookingDetails: j.bookingDetails ?? null,
-    })) ?? [];
 
   const loadDashboard = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -737,6 +714,62 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
       setProfileSaveLoading(false);
     }
   }, [profileEdit.bank_name, profileEdit.bank_account_holder, profileEdit.bank_account_number, profileEdit.bank_branch_code, profileEdit.bank_account_type]);
+
+  const sessionUser = data?.user as
+    | (typeof data.user & { role?: string; phone?: string })
+    | undefined;
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-sm text-slate-500">Loading your cleaner session…</p>
+      </div>
+    );
+  }
+
+  if (!sessionUser || sessionUser.role !== "cleaner") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-sm text-slate-500">
+          You must be logged in as a cleaner to view this dashboard.
+        </p>
+      </div>
+    );
+  }
+
+  const displayName =
+    payload?.cleaner.name ||
+    sessionUser.name ||
+    (sessionUser.phone ? `Cleaner ${sessionUser.phone}` : "Cleaner");
+
+  const rating = payload?.cleaner.rating ?? null;
+  const reviews = payload?.cleaner.reviews ?? 0;
+
+  const mapApiStatus = (s: string | null): JobStatus => {
+    if (!s) return "assigned";
+    const lower = s.toLowerCase();
+    if (lower === "on_my_way") return "on_my_way";
+    if (lower === "arrived") return "arrived";
+    if (lower === "in_progress") return "in-progress";
+    if (lower === "completed") return "completed";
+    if (lower === "cancelled") return "cancelled";
+    return "assigned";
+  };
+
+  const todayJobs: Job[] =
+    payload?.today.jobs.map((j) => ({
+      id: j.id,
+      customer: j.customer,
+      address: j.address || "Customer address",
+      time: j.time,
+      service: j.service || "Cleaning",
+      duration: formatEstimatedDuration(j.estimatedDurationMinutes ?? 210),
+      status: mapApiStatus(j.status),
+      earnings: formatCurrency(j.totalAmount),
+      notes: undefined,
+      cleanerRating: j.cleanerRating ?? null,
+      bookingDetails: j.bookingDetails ?? null,
+    })) ?? [];
 
   const assignedCount = payload?.today.assignedCount ?? todayJobs.length;
   const pendingPayout = payload?.earnings.pendingPayout ?? 0;
@@ -1551,6 +1584,17 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                   >
                     <Navigation className="w-4 h-4" /> Directions
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMessageJob(selectedJob);
+                      setMessageText("");
+                      setMessageError(null);
+                    }}
+                    className="flex-1 min-w-[120px] bg-slate-100 text-slate-700 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-200"
+                  >
+                    <MessageSquare className="w-4 h-4" /> Message customer
+                  </button>
                   {STATUS_BUTTON_LABEL[selectedJob.status] && (
                     <button
                       type="button"
@@ -1720,6 +1764,145 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                 >
                   {ratingSaving ? "Submitting…" : "Submit rating"}
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Message customer modal */}
+      <AnimatePresence>
+        {messageJob && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setMessageJob(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[85vh] flex flex-col"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                    Message customer
+                  </p>
+                  <h3 className="text-lg font-bold text-slate-900">{messageJob.customer}</h3>
+                  <p className="text-xs text-slate-500">
+                    {messageJob.service} · {messageJob.time}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMessageJob(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-0 flex flex-col gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden flex flex-col min-h-[180px] max-h-[280px]">
+                  <div className="p-3 overflow-y-auto flex-1 space-y-2">
+                    {messageListLoading ? (
+                      <p className="text-sm text-slate-400 text-center py-4">Loading messages…</p>
+                    ) : messageList.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-4">No messages yet. Send one below.</p>
+                    ) : (
+                      messageList.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`flex ${m.senderType === "cleaner" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
+                              m.senderType === "cleaner"
+                                ? "bg-emerald-600 text-white rounded-br-md"
+                                : "bg-white border border-slate-200 text-slate-800 rounded-bl-md"
+                            }`}
+                          >
+                            {m.senderType === "customer" && (
+                              <p className="text-[10px] font-semibold text-slate-500 mb-0.5">Customer</p>
+                            )}
+                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                            <p className={`text-[10px] mt-1 ${m.senderType === "cleaner" ? "text-emerald-200" : "text-slate-400"}`}>
+                              {m.createdAt
+                                ? new Date(m.createdAt).toLocaleString("en-ZA", {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : ""}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <label className="block text-xs font-semibold text-slate-500">Your reply</label>
+                <textarea
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 min-h-[80px]"
+                  placeholder="Reply to the customer…"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                />
+                <div className="h-4 text-[11px] text-rose-600">{messageError ?? null}</div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMessageJob(null)}
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    disabled={messageSaving || !messageText.trim()}
+                    onClick={async () => {
+                      if (!messageJob || !messageText.trim()) return;
+                      const text = messageText.trim();
+                      setMessageSaving(true);
+                      setMessageError(null);
+                      try {
+                        const res = await fetch("/api/cleaner/messages", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ bookingId: messageJob.id, message: text }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                          setMessageError((data as { error?: string }).error || "Could not send message");
+                          return;
+                        }
+                        setMessageList((prev) => [
+                          ...prev,
+                          {
+                            id: `temp-${Date.now()}`,
+                            senderType: "cleaner",
+                            body: text,
+                            createdAt: new Date().toISOString(),
+                          },
+                        ]);
+                        setMessageText("");
+                      } catch {
+                        setMessageError("Could not send message. Please try again.");
+                      } finally {
+                        setMessageSaving(false);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {messageSaving ? "Sending…" : "Send message"}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
