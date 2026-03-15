@@ -7,6 +7,8 @@ export type CustomerBooking = {
   reference: string;
   service: string;
   status: string | null;
+  /** Paystack status (e.g. "success", "admin") when paid; null when payment pending. */
+  paystackStatus: string | null;
   totalAmount: number;
   currency: string | null;
   date: string;
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("bookings")
       .select(
-        "id, reference, service, status, total_amount, currency, date, time, address, created_at, bedrooms, bathrooms, extra_rooms, instructions, extras, cleaner_id, estimated_duration_minutes, booking_ratings(rating, comment, rater_type)"
+        "id, reference, service, status, paystack_status, total_amount, currency, date, time, address, created_at, bedrooms, bathrooms, extra_rooms, instructions, extras, cleaner_id, estimated_duration_minutes, booking_ratings(rating, comment, rater_type)"
       )
       .eq("email", email.toLowerCase())
       .order("created_at", { ascending: false })
@@ -69,6 +71,7 @@ export async function GET(req: NextRequest) {
       reference?: string | null;
       service?: string | null;
       status?: string | null;
+      paystack_status?: string | null;
       total_amount?: number | null;
       currency?: string | null;
       date?: string | null;
@@ -141,6 +144,7 @@ export async function GET(req: NextRequest) {
         reference: String(row.reference ?? ""),
         service: String(row.service ?? "Cleaning"),
         status: row.status ?? null,
+        paystackStatus: row.paystack_status ?? null,
         totalAmount: Number(row.total_amount ?? 0),
         currency: row.currency ?? null,
         date: String(row.date ?? ""),

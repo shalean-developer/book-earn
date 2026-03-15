@@ -17,12 +17,24 @@ import {
   LayoutDashboard,
   Menu,
   Sparkles,
+  ChevronRight,
+  CalendarPlus,
+  Loader2,
+  ChevronLeft,
 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import AdminPricingManager from "./AdminPricingManager";
 import { formatEstimatedDuration } from "@/lib/duration";
 
 type AdminTab =
   | "overview"
+  | "book"
   | "bookings"
   | "cleaners"
   | "customers"
@@ -330,6 +342,54 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
 
+  const WORKING_AREAS = [
+    "Sea Point", "Green Point", "Camps Bay", "Gardens", "Vredehoek",
+    "Claremont", "Kenilworth", "Rondebosch", "Durbanville", "Bellville", "Constantia",
+  ];
+  const ADMIN_BOOK_SERVICES = [
+    { id: "standard", label: "Standard Cleaning" },
+    { id: "deep", label: "Deep Cleaning" },
+    { id: "move", label: "Moving Cleaning" },
+    { id: "airbnb", label: "Airbnb Cleaning" },
+    { id: "carpet", label: "Carpet Cleaning" },
+  ] as const;
+  const [bookStep, setBookStep] = useState(1);
+  const [bookForm, setBookForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    service: "standard",
+    bedrooms: 2,
+    bathrooms: 1,
+    extraRooms: 0,
+    propertyType: "apartment",
+    officeSize: "",
+    privateOffices: 1,
+    meetingRooms: 1,
+    carpetedRooms: 0,
+    looseRugs: 0,
+    carpetExtraCleaners: 0,
+    workingArea: "",
+    date: "",
+    time: "",
+    cleanerId: "any",
+    address: "",
+    apartmentUnit: "",
+    instructions: "",
+    cleaningFrequency: "once",
+    cleaningDays: [] as string[],
+    extras: [] as string[],
+    teamId: "",
+    paymentStatus: "unpaid" as "paid" | "unpaid",
+  });
+  const [bookCustomers, setBookCustomers] = useState<AdminCustomer[]>([]);
+  const [bookCustomersLoading, setBookCustomersLoading] = useState(false);
+  const [bookCleaners, setBookCleaners] = useState<AdminCleaner[]>([]);
+  const [bookCleanersLoading, setBookCleanersLoading] = useState(false);
+  const [bookCreateLoading, setBookCreateLoading] = useState(false);
+  const [bookCreateError, setBookCreateError] = useState<string | null>(null);
+  const [bookCreateSuccess, setBookCreateSuccess] = useState<{ reference: string; id: string } | null>(null);
+
   const averageReviewRating =
     reviews.length > 0
       ? reviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) /
@@ -477,12 +537,12 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   }, []);
 
   const unreadNotifications = notifications.filter((n) => !n.read).length;
+  const unreadList = notifications.filter((n) => !n.read);
+  const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
+  const [expandedNotificationId, setExpandedNotificationId] = useState<string | null>(null);
 
   const handleToggleNotifications = () => {
     setIsNotificationsOpen((open) => !open);
-    setNotifications((current) =>
-      current.map((n) => (n.read ? n : { ...n, read: true }))
-    );
   };
 
   const handleMarkAllRead = () => {
@@ -961,6 +1021,127 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
     loadCustomerDetail();
   }, [openCustomerEmail, customerDetailPage, customerDetailPageSize]);
 
+  useEffect(() => {
+    if (activeTab !== "book") return;
+    const loadBookData = async () => {
+      setBookCustomersLoading(true);
+      setBookCleanersLoading(true);
+      setBookCreateError(null);
+      setBookCreateSuccess(null);
+      try {
+        const [custRes, cleanRes] = await Promise.all([
+          fetch("/api/admin/customers?limit=500"),
+          fetch("/api/admin/cleaners?limit=100"),
+        ]);
+        const custData = await custRes.json().catch(() => ({}));
+        const cleanData = await cleanRes.json().catch(() => ({}));
+        if (custRes.ok && Array.isArray(custData?.customers)) {
+          setBookCustomers(custData.customers);
+        } else {
+          setBookCustomers([]);
+        }
+        if (cleanRes.ok && Array.isArray(cleanData?.cleaners)) {
+          setBookCleaners(cleanData.cleaners);
+        } else {
+          setBookCleaners([]);
+        }
+      } finally {
+        setBookCustomersLoading(false);
+        setBookCleanersLoading(false);
+      }
+    };
+    loadBookData();
+  }, [activeTab]);
+
+  const handleAdminBookCreate = async () => {
+    const { name, email, phone, service, bedrooms, bathrooms, extraRooms, propertyType, officeSize, privateOffices, meetingRooms, carpetedRooms, looseRugs, carpetExtraCleaners, workingArea, date, time, cleanerId, address, apartmentUnit, instructions, cleaningFrequency, cleaningDays, extras, teamId } = bookForm;
+    if (!name.trim() || !email.trim() || !date || !time || !address.trim()) {
+      setBookCreateError("Please fill name, email, date, time, and address.");
+      return;
+    }
+    setBookCreateLoading(true);
+    setBookCreateError(null);
+    setBookCreateSuccess(null);
+    try {
+      const res = await fetch("/api/admin/bookings/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentStatus: bookForm.paymentStatus,
+          booking: {
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            phone: (phone || "").trim(),
+            service,
+            bedrooms,
+            bathrooms,
+            extraRooms,
+            propertyType,
+            officeSize: officeSize || "",
+            privateOffices,
+            meetingRooms,
+            carpetedRooms,
+            looseRugs,
+            carpetExtraCleaners,
+            extras,
+            cleanerId: cleanerId || "any",
+            teamId: teamId || "",
+            workingArea,
+            cleaningFrequency,
+            cleaningDays,
+            date,
+            time,
+            address: address.trim(),
+            apartmentUnit: (apartmentUnit || "").trim(),
+            instructions: (instructions || "").trim(),
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBookCreateError((data?.error as string) || "Failed to create booking");
+        return;
+      }
+      setBookCreateSuccess({ reference: data?.booking?.reference ?? "", id: data?.booking?.id ?? "" });
+      setBookStep(1);
+      setBookForm({
+        name: "",
+        email: "",
+        phone: "",
+        service: "standard",
+        bedrooms: 2,
+        bathrooms: 1,
+        extraRooms: 0,
+        propertyType: "apartment",
+        officeSize: "",
+        privateOffices: 1,
+        meetingRooms: 1,
+        carpetedRooms: 0,
+        looseRugs: 0,
+        carpetExtraCleaners: 0,
+        workingArea: "",
+        date: "",
+        time: "",
+        cleanerId: "any",
+        address: "",
+        apartmentUnit: "",
+        instructions: "",
+        cleaningFrequency: "once",
+        cleaningDays: [],
+        extras: [],
+        teamId: "",
+        paymentStatus: "unpaid",
+      });
+      setBookingsListLoading(true);
+      fetch(`/api/admin/bookings?limit=${bookingsPageSize}&page=1`).then((r) => r.json()).then((d) => {
+        if (Array.isArray(d?.bookings)) setBookingsList(d.bookings);
+        if (d?.pagination) setBookingsPagination(d.pagination);
+      }).catch(() => {}).finally(() => setBookingsListLoading(false));
+    } finally {
+      setBookCreateLoading(false);
+    }
+  };
+
   const handleAddCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = addCustomerForm.name.trim();
@@ -1020,6 +1201,11 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
       id: "overview",
       label: "Overview",
       icon: <LayoutDashboard className="w-5 h-5" />,
+    },
+    {
+      id: "book",
+      label: "Book for customer",
+      icon: <CalendarPlus className="w-5 h-5" />,
     },
     {
       id: "bookings",
@@ -1110,7 +1296,9 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
             <button className="md:hidden" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
               <Menu className="w-6 h-6" />
             </button>
-            <h1 className="text-lg font-bold text-slate-900 capitalize">{activeTab}</h1>
+            <h1 className="text-lg font-bold text-slate-900 capitalize">
+              {activeTab === "book" ? "Book for customer" : activeTab}
+            </h1>
           </div>
 
           <div className="flex items-center gap-4">
@@ -1152,7 +1340,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                         : "You're all caught up"}
                     </p>
                   </div>
-                  {!notificationsLoading && !notificationsError && notifications.some((n) => !n.read) && (
+                  {!notificationsLoading && !notificationsError && unreadList.length > 0 && (
                     <button
                       type="button"
                       onClick={handleMarkAllRead}
@@ -1171,13 +1359,13 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                     <div className="px-4 py-6 text-center text-xs text-rose-500">
                       {notificationsError}
                     </div>
-                  ) : notifications.length === 0 ? (
+                  ) : unreadList.length === 0 ? (
                     <div className="px-4 py-6 text-center text-xs text-slate-500">
-                      No notifications yet.
+                      You&apos;re all caught up. No new notifications.
                     </div>
                   ) : (
                     <ul className="divide-y divide-slate-100">
-                      {notifications.map((notification) => (
+                      {unreadList.map((notification) => (
                         <li
                           key={notification.id}
                           role="button"
@@ -1187,14 +1375,12 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                             (e.key === "Enter" || e.key === " ") &&
                             handleMarkOneRead(notification.id)
                           }
-                          className={`px-4 py-3 text-sm cursor-pointer hover:bg-slate-50/80 transition-colors ${
-                            notification.read ? "bg-white" : "bg-blue-50/60"
-                          }`}
+                          className="px-4 py-3 text-sm cursor-pointer hover:bg-slate-50/80 transition-colors bg-blue-50/60"
                         >
                           <p className="font-semibold text-slate-900 text-xs">
                             {notification.title}
                           </p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
+                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
                             {notification.description}
                           </p>
                           <p className="text-[10px] text-slate-400 mt-1">
@@ -1205,7 +1391,17 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                     </ul>
                   )}
                 </div>
-                <div className="px-4 py-2 border-t border-slate-100 text-center">
+                <div className="px-4 py-2 border-t border-slate-100 flex flex-col gap-1 text-center">
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+                    onClick={() => {
+                      setIsNotificationsOpen(false);
+                      setAllNotificationsOpen(true);
+                    }}
+                  >
+                    View all notifications
+                  </button>
                   <button
                     type="button"
                     className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
@@ -1216,6 +1412,56 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                 </div>
               </div>
             )}
+            <Sheet open={allNotificationsOpen} onOpenChange={setAllNotificationsOpen}>
+              <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>All notifications</SheetTitle>
+                  <SheetDescription>
+                    Read and expand messages. Read items are hidden from the bell dropdown.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6 space-y-2">
+                  {notifications.length === 0 ? (
+                    <p className="text-sm text-slate-500 py-4">No notifications yet.</p>
+                  ) : (
+                    notifications.map((n) => {
+                      const isExpanded = expandedNotificationId === n.id;
+                      return (
+                        <div
+                          key={n.id + n.time}
+                          className={`rounded-xl border transition-colors ${
+                            n.read ? "border-slate-100 bg-slate-50/50" : "border-blue-100 bg-blue-50/40"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="w-full px-4 py-3 text-left flex items-start gap-3"
+                            onClick={() => {
+                              setExpandedNotificationId((id) => (id === n.id ? null : n.id));
+                              handleMarkOneRead(n.id);
+                            }}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-slate-900">{n.title}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {isExpanded ? n.description : n.description.length > 100 ? `${n.description.slice(0, 100)}…` : n.description}
+                              </p>
+                              {!isExpanded && n.description.length > 100 && (
+                                <span className="text-[11px] text-blue-600 font-medium mt-1 inline-block">Click to expand</span>
+                              )}
+                              <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
+                            </div>
+                            <span className={`flex-shrink-0 mt-1 transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+                              <ChevronRight className="w-4 h-4 text-slate-400" />
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs border border-blue-200">
               AD
             </div>
@@ -1701,6 +1947,342 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
             </div>
           )}
 
+          {activeTab === "book" && (
+            <div className="max-w-2xl mx-auto w-full px-3 sm:px-6 pb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Book for customer</h2>
+                  <p className="text-slate-500 text-sm mt-0.5">Create a booking on behalf of a customer (no payment)</p>
+                </div>
+              </div>
+
+              {bookCreateSuccess && (
+                <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 flex flex-wrap items-center justify-between gap-2">
+                  <span>Booking created: <strong>{bookCreateSuccess.reference}</strong></span>
+                  <button
+                    type="button"
+                    className="text-emerald-700 font-semibold underline"
+                    onClick={() => setBookCreateSuccess(null)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 sm:px-6 py-3 border-b border-slate-100 flex items-center gap-2 flex-wrap">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => { setBookCreateError(null); setBookStep(s); }}
+                      className={`min-w-[2rem] h-8 rounded-lg text-xs font-bold transition-colors ${
+                        bookStep === s ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                  <span className="text-xs text-slate-500 ml-1">
+                    {bookStep === 1 && "Customer"}
+                    {bookStep === 2 && "Service"}
+                    {bookStep === 3 && "Schedule"}
+                    {bookStep === 4 && "Address"}
+                    {bookStep === 5 && "Review"}
+                  </span>
+                </div>
+
+                <div className="p-4 sm:p-6 space-y-4">
+                  {bookStep === 1 && (
+                    <>
+                      <p className="text-sm font-semibold text-slate-700">Customer</p>
+                      {bookCustomersLoading ? (
+                        <p className="text-xs text-slate-500">Loading customers...</p>
+                      ) : bookCustomers.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-slate-600">Quick select</label>
+                          <select
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50"
+                            value={bookForm.email}
+                            onChange={(e) => {
+                              const c = bookCustomers.find((x) => x.email === e.target.value);
+                              if (c) {
+                                setBookForm((f) => ({ ...f, name: c.name, email: c.email, phone: c.phone ?? "" }));
+                              } else {
+                                setBookForm((f) => ({ ...f, name: "", email: "", phone: "" }));
+                              }
+                            }}
+                          >
+                            <option value="">— New customer —</option>
+                            {bookCustomers.map((c) => (
+                              <option key={c.email} value={c.email}>{c.name} ({c.email})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Name *</span>
+                          <input
+                            type="text"
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.name}
+                            onChange={(e) => setBookForm((f) => ({ ...f, name: e.target.value }))}
+                            placeholder="Customer name"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Email *</span>
+                          <input
+                            type="email"
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.email}
+                            onChange={(e) => setBookForm((f) => ({ ...f, email: e.target.value }))}
+                            placeholder="email@example.com"
+                          />
+                        </label>
+                      </div>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Phone</span>
+                        <input
+                          type="tel"
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                          value={bookForm.phone}
+                          onChange={(e) => setBookForm((f) => ({ ...f, phone: e.target.value }))}
+                          placeholder="0XX XXX XXXX"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {bookStep === 2 && (
+                    <>
+                      <p className="text-sm font-semibold text-slate-700">Service & property</p>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Service</span>
+                        <select
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                          value={bookForm.service}
+                          onChange={(e) => setBookForm((f) => ({ ...f, service: e.target.value }))}
+                        >
+                          {ADMIN_BOOK_SERVICES.map((s) => (
+                            <option key={s.id} value={s.id}>{s.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Bedrooms</span>
+                          <input
+                            type="number"
+                            min={0}
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.bedrooms}
+                            onChange={(e) => setBookForm((f) => ({ ...f, bedrooms: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Bathrooms</span>
+                          <input
+                            type="number"
+                            min={0}
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.bathrooms}
+                            onChange={(e) => setBookForm((f) => ({ ...f, bathrooms: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Extra rooms</span>
+                          <input
+                            type="number"
+                            min={0}
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.extraRooms}
+                            onChange={(e) => setBookForm((f) => ({ ...f, extraRooms: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Property</span>
+                          <select
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.propertyType}
+                            onChange={(e) => setBookForm((f) => ({ ...f, propertyType: e.target.value }))}
+                          >
+                            <option value="apartment">Apartment</option>
+                            <option value="house">House</option>
+                            <option value="office">Office</option>
+                          </select>
+                        </label>
+                      </div>
+                    </>
+                  )}
+
+                  {bookStep === 3 && (
+                    <>
+                      <p className="text-sm font-semibold text-slate-700">Schedule</p>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Working area *</span>
+                        <select
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                          value={bookForm.workingArea}
+                          onChange={(e) => setBookForm((f) => ({ ...f, workingArea: e.target.value }))}
+                        >
+                          <option value="">Select area</option>
+                          {WORKING_AREAS.map((a) => (
+                            <option key={a} value={a}>{a}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Date *</span>
+                          <input
+                            type="date"
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.date}
+                            min={new Date().toISOString().slice(0, 10)}
+                            onChange={(e) => setBookForm((f) => ({ ...f, date: e.target.value }))}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-medium text-slate-600 mb-1">Time *</span>
+                          <select
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                            value={bookForm.time}
+                            onChange={(e) => setBookForm((f) => ({ ...f, time: e.target.value }))}
+                          >
+                            <option value="">Select time</option>
+                            {["08:00", "10:00", "13:00", "15:00"].map((t) => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Cleaner</span>
+                        <select
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                          value={bookForm.cleanerId}
+                          onChange={(e) => setBookForm((f) => ({ ...f, cleanerId: e.target.value }))}
+                        >
+                          <option value="any">Any available</option>
+                          {bookCleaners.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </>
+                  )}
+
+                  {bookStep === 4 && (
+                    <>
+                      <p className="text-sm font-semibold text-slate-700">Address & notes</p>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Address *</span>
+                        <input
+                          type="text"
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                          value={bookForm.address}
+                          onChange={(e) => setBookForm((f) => ({ ...f, address: e.target.value }))}
+                          placeholder="Street, suburb"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Unit / building</span>
+                        <input
+                          type="text"
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                          value={bookForm.apartmentUnit}
+                          onChange={(e) => setBookForm((f) => ({ ...f, apartmentUnit: e.target.value }))}
+                          placeholder="Optional"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Instructions</span>
+                        <textarea
+                          rows={3}
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 resize-none"
+                          value={bookForm.instructions}
+                          onChange={(e) => setBookForm((f) => ({ ...f, instructions: e.target.value }))}
+                          placeholder="Access or special requests"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {bookStep === 5 && (
+                    <>
+                      <p className="text-sm font-semibold text-slate-700">Review</p>
+                      <label className="block">
+                        <span className="block text-xs font-medium text-slate-600 mb-1">Payment status</span>
+                        <select
+                          className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5"
+                          value={bookForm.paymentStatus}
+                          onChange={(e) => setBookForm((f) => ({ ...f, paymentStatus: e.target.value as "paid" | "unpaid" }))}
+                        >
+                          <option value="unpaid">Unpaid – send payment link to customer</option>
+                          <option value="paid">Paid – mark as confirmed (no payment link)</option>
+                        </select>
+                        {bookForm.paymentStatus === "unpaid" && (
+                          <p className="text-xs text-slate-500 mt-1">Customer will receive an email with a link to pay. They can also pay from My Bookings.</p>
+                        )}
+                      </label>
+                      <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 space-y-2 text-sm">
+                        <p><span className="text-slate-500">Customer:</span> {bookForm.name || "—"} ({bookForm.email || "—"})</p>
+                        <p><span className="text-slate-500">Service:</span> {ADMIN_BOOK_SERVICES.find((s) => s.id === bookForm.service)?.label ?? bookForm.service}</p>
+                        <p><span className="text-slate-500">When:</span> {bookForm.date || "—"} at {bookForm.time || "—"} · {bookForm.workingArea || "—"}</p>
+                        <p><span className="text-slate-500">Address:</span> {bookForm.address || "—"}</p>
+                        <p><span className="text-slate-500">Cleaner:</span> {bookForm.cleanerId === "any" ? "Any available" : bookCleaners.find((c) => c.id === bookForm.cleanerId)?.name ?? bookForm.cleanerId}</p>
+                      </div>
+                    </>
+                  )}
+
+                  {bookCreateError && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                      {bookCreateError}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => { setBookStep((s) => Math.max(1, s - 1)); setBookCreateError(null); }}
+                      disabled={bookStep === 1}
+                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm disabled:opacity-50"
+                    >
+                      <ChevronLeft className="w-4 h-4" /> Back
+                    </button>
+                    {bookStep < 5 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookCreateError(null);
+                          if (bookStep === 1 && (!bookForm.name.trim() || !bookForm.email.trim())) return;
+                          if (bookStep === 3 && (!bookForm.workingArea || !bookForm.date || !bookForm.time)) return;
+                          if (bookStep === 4 && !bookForm.address.trim()) return;
+                          setBookStep((s) => Math.min(5, s + 1));
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700"
+                      >
+                        Next <ChevronRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={bookCreateLoading}
+                        onClick={handleAdminBookCreate}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 disabled:opacity-70"
+                      >
+                        {bookCreateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {bookCreateLoading ? "Creating..." : "Create booking"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === "pricing" && (
             <AdminPricingManager />
           )}
@@ -1719,9 +2301,13 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                     </p>
                   </div>
                 </div>
-                <button className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md hover:bg-blue-700 transition-all flex items-center gap-2">
-                  <Calendar className="w-4 h-4" /> New Booking
-                </button>
+                <button
+                type="button"
+                onClick={() => setActiveTab("book")}
+                className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md hover:bg-blue-700 transition-all flex items-center gap-2"
+              >
+                <CalendarPlus className="w-4 h-4" /> New Booking
+              </button>
               </div>
 
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">

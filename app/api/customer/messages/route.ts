@@ -7,6 +7,9 @@ export type BookingMessage = {
   senderType: "customer" | "cleaner";
   body: string;
   createdAt: string;
+  status: "sent" | "delivered" | "read";
+  deliveredAt: string | null;
+  readAt: string | null;
 };
 
 async function getAuth(req: NextRequest) {
@@ -27,6 +30,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const bookingId = searchParams.get("bookingId")?.trim();
+    const markRead = searchParams.get("markRead") === "1";
     if (!bookingId) {
       return NextResponse.json(
         { error: "bookingId is required" },
@@ -49,9 +53,27 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Mark messages from cleaner as delivered when customer loads; as read when markRead=1
+    const now = new Date().toISOString();
+    if (markRead) {
+      await supabase
+        .from("booking_messages")
+        .update({ status: "read", read_at: now })
+        .eq("booking_id", bookingId)
+        .eq("sender_type", "cleaner")
+        .in("status", ["sent", "delivered"]);
+    } else {
+      await supabase
+        .from("booking_messages")
+        .update({ status: "delivered", delivered_at: now })
+        .eq("booking_id", bookingId)
+        .eq("sender_type", "cleaner")
+        .eq("status", "sent");
+    }
+
     const { data: rows, error } = await supabase
       .from("booking_messages")
-      .select("id, sender_type, body, created_at")
+      .select("id, sender_type, body, created_at, status, delivered_at, read_at")
       .eq("booking_id", bookingId)
       .order("created_at", { ascending: true });
 
@@ -71,6 +93,9 @@ export async function GET(req: NextRequest) {
       senderType: r.sender_type === "cleaner" ? "cleaner" : "customer",
       body: String(r.body ?? ""),
       createdAt: r.created_at ? String(r.created_at) : "",
+      status: (r.status === "read" || r.status === "delivered" ? r.status : "sent") as "sent" | "delivered" | "read",
+      deliveredAt: r.delivered_at ? String(r.delivered_at) : null,
+      readAt: r.read_at ? String(r.read_at) : null,
     }));
 
     return NextResponse.json({ messages }, { status: 200 });
@@ -128,12 +153,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { error: insertError } = await supabase.from("booking_messages").insert({
-      booking_id: bookingId,
-      sender_type: "customer",
-      sender_email: email,
-      body: message,
-    });
+    const { data: inserted, error: insertError } = await supabase
+      .from("booking_messages")
+      .insert({
+        booking_id: bookingId,
+        sender_type: "customer",
+        sender_email: email,
+        body: message,
+        status: "sent",
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       console.error("Error saving customer message:", insertError);
@@ -148,7 +178,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    return NextResponse.json(
+      { ok: true, messageId: (inserted as { id?: string })?.id ?? null },
+      { status: 200 },
+    );
   } catch (err) {
     console.error("Unexpected error in customer messages route:", err);
     return NextResponse.json(

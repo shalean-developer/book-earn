@@ -26,8 +26,16 @@ import {
   Loader2,
   Building2,
   Save,
+  ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { formatEstimatedDuration } from "@/lib/duration";
 
 type CleanerTab = "today" | "schedule" | "earnings" | "history" | "chat" | "account";
@@ -438,7 +446,15 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
   const [cashOutLoading, setCashOutLoading] = useState(false);
   const [cashOutError, setCashOutError] = useState<string | null>(null);
   const [messageJob, setMessageJob] = useState<Job | null>(null);
-  type MessageItem = { id: string; senderType: "customer" | "cleaner"; body: string; createdAt: string };
+  type MessageItem = {
+    id: string;
+    senderType: "customer" | "cleaner";
+    body: string;
+    createdAt: string;
+    status?: "sent" | "delivered" | "read";
+    deliveredAt?: string | null;
+    readAt?: string | null;
+  };
   const [messageList, setMessageList] = useState<MessageItem[]>([]);
   const [messageListLoading, setMessageListLoading] = useState(false);
   const [messageText, setMessageText] = useState("");
@@ -574,7 +590,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
     let cancelled = false;
     setMessageListLoading(true);
     setMessageError(null);
-    fetch(`/api/cleaner/messages?bookingId=${encodeURIComponent(messageJob.id)}`)
+    fetch(`/api/cleaner/messages?bookingId=${encodeURIComponent(messageJob.id)}&markRead=1`)
       .then((res) => (res.ok ? res.json() : Promise.resolve({ messages: [] })))
       .then((data: { messages?: MessageItem[] }) => {
         if (!cancelled && Array.isArray(data.messages)) {
@@ -593,11 +609,11 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
   }, [messageJob?.id]);
 
   const unreadNotifications = notifications.filter((n) => !n.read).length;
+  const unreadList = notifications.filter((n) => !n.read);
+  const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
+  const [expandedNotificationId, setExpandedNotificationId] = useState<string | null>(null);
   const handleToggleNotifications = () => {
     setNotificationsOpen((open) => !open);
-    setNotifications((current) =>
-      current.map((n) => (n.read ? n : { ...n, read: true }))
-    );
   };
   const handleMarkAllRead = () => {
     setNotifications((current) => current.map((n) => ({ ...n, read: true })));
@@ -870,7 +886,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                     </div>
                     {!notificationsLoading &&
                       !notificationsError &&
-                      notifications.some((n) => !n.read) && (
+                      unreadList.length > 0 && (
                         <button
                           type="button"
                           onClick={handleMarkAllRead}
@@ -889,13 +905,13 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                       <div className="px-4 py-6 text-center text-xs text-rose-500">
                         {notificationsError}
                       </div>
-                    ) : notifications.length === 0 ? (
+                    ) : unreadList.length === 0 ? (
                       <div className="px-4 py-6 text-center text-xs text-slate-500">
-                        No notifications yet.
+                        You&apos;re all caught up. No new notifications.
                       </div>
                     ) : (
                       <ul className="divide-y divide-slate-100">
-                        {notifications.map((notification) => (
+                        {unreadList.map((notification) => (
                           <li
                             key={notification.id}
                             role="button"
@@ -905,14 +921,12 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                               (e.key === "Enter" || e.key === " ") &&
                               handleMarkOneRead(notification.id)
                             }
-                            className={`px-4 py-3 text-sm cursor-pointer hover:bg-slate-50/80 transition-colors ${
-                              notification.read ? "bg-white" : "bg-blue-50/60"
-                            }`}
+                            className="px-4 py-3 text-sm cursor-pointer hover:bg-slate-50/80 transition-colors bg-blue-50/60"
                           >
                             <p className="font-semibold text-slate-900 text-xs">
                               {notification.title}
                             </p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
                               {notification.description}
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1">
@@ -923,7 +937,17 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                       </ul>
                     )}
                   </div>
-                  <div className="px-4 py-2 border-t border-slate-100 text-center">
+                  <div className="px-4 py-2 border-t border-slate-100 flex flex-col gap-1 text-center">
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        setAllNotificationsOpen(true);
+                      }}
+                    >
+                      View all notifications
+                    </button>
                     <button
                       type="button"
                       className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
@@ -935,6 +959,56 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                 </div>
               )}
             </div>
+            <Sheet open={allNotificationsOpen} onOpenChange={setAllNotificationsOpen}>
+              <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>All notifications</SheetTitle>
+                  <SheetDescription>
+                    Read and expand messages. Read items are hidden from the bell dropdown.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6 space-y-2">
+                  {notifications.length === 0 ? (
+                    <p className="text-sm text-slate-500 py-4">No notifications yet.</p>
+                  ) : (
+                    notifications.map((n) => {
+                      const isExpanded = expandedNotificationId === n.id;
+                      return (
+                        <div
+                          key={n.id + n.time}
+                          className={`rounded-xl border transition-colors ${
+                            n.read ? "border-slate-100 bg-slate-50/50" : "border-blue-100 bg-blue-50/40"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="w-full px-4 py-3 text-left flex items-start gap-3"
+                            onClick={() => {
+                              setExpandedNotificationId((id) => (id === n.id ? null : n.id));
+                              handleMarkOneRead(n.id);
+                            }}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-slate-900 text-xs">{n.title}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {isExpanded ? n.description : n.description.length > 100 ? `${n.description.slice(0, 100)}…` : n.description}
+                              </p>
+                              {!isExpanded && n.description.length > 100 && (
+                                <span className="text-[11px] text-blue-600 font-medium mt-1 inline-block">Click to expand</span>
+                              )}
+                              <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
+                            </div>
+                            <span className={`flex-shrink-0 mt-1 transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+                              <ChevronRight className="w-4 h-4 text-slate-400" />
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
             <button
               type="button"
               onClick={handleLogout}
@@ -1841,6 +1915,11 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                                   })
                                 : ""}
                             </p>
+                            {m.senderType === "cleaner" && (
+                              <p className="text-[10px] mt-0.5 text-emerald-200/90">
+                                {m.status === "read" ? "Read" : m.status === "delivered" ? "Delivered" : "Sent"}
+                              </p>
+                            )}
                           </div>
                         </div>
                       ))
@@ -1877,21 +1956,30 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ bookingId: messageJob.id, message: text }),
                         });
-                        const data = await res.json().catch(() => ({}));
+                        const data = (await res.json().catch(() => ({}))) as { error?: string; messageId?: string };
                         if (!res.ok) {
-                          setMessageError((data as { error?: string }).error || "Could not send message");
+                          setMessageError(data.error || "Could not send message");
                           return;
                         }
                         setMessageList((prev) => [
                           ...prev,
                           {
-                            id: `temp-${Date.now()}`,
+                            id: data.messageId ?? `temp-${Date.now()}`,
                             senderType: "cleaner",
                             body: text,
                             createdAt: new Date().toISOString(),
+                            status: "sent",
                           },
                         ]);
                         setMessageText("");
+                        setTimeout(() => {
+                          fetch(`/api/cleaner/messages?bookingId=${encodeURIComponent(messageJob.id)}`)
+                            .then((r) => (r.ok ? r.json() : Promise.resolve({ messages: [] })))
+                            .then((d: { messages?: MessageItem[] }) => {
+                              if (Array.isArray(d.messages)) setMessageList(d.messages);
+                            })
+                            .catch(() => {});
+                        }, 3000);
                       } catch {
                         setMessageError("Could not send message. Please try again.");
                       } finally {

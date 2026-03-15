@@ -47,6 +47,7 @@ type CustomerBooking = {
   reference: string;
   service: string;
   status: BookingStatus | null;
+  paystackStatus: string | null;
   totalAmount: number;
   currency: string | null;
   date: string;
@@ -85,7 +86,7 @@ type CustomerNotification = {
   description: string;
   time: string;
   read: boolean;
-  type: "upcoming" | "booking_update" | "payment" | "other";
+  type: "upcoming" | "booking_update" | "payment" | "message" | "other";
 };
 
 interface Booking {
@@ -105,6 +106,10 @@ interface Booking {
   notes?: string | null;
   extras?: string[];
   estimatedDurationMinutes?: number | null;
+  /** Raw reference for payment link (SC...) when payment is pending. */
+  referenceForPay?: string;
+  /** True when status is pending and not yet paid (show Pay now). */
+  needsPayment?: boolean;
 }
 
 function formatCurrency(amount: number, currency?: string | null) {
@@ -178,6 +183,10 @@ function mapBookingToCard(b: CustomerBooking): Booking {
     return `SC${core}`;
   };
 
+  const status = (b.status as BookingStatus) || "pending";
+  const paid = (b.paystackStatus || "").toLowerCase() === "success" || (b.paystackStatus || "").toLowerCase() === "admin";
+  const needsPayment = status === "pending" && !paid && (b.reference || "").startsWith("SC");
+
   return {
     id: formatPublicReference(b.reference || b.id),
     bookingId: b.id,
@@ -185,7 +194,7 @@ function mapBookingToCard(b: CustomerBooking): Booking {
     time: b.time || "",
     service: b.service || "Cleaning",
     cleaner: b.cleanerName ?? "Your Shalean Pro",
-    status: (b.status as BookingStatus) || "pending",
+    status,
     price: formatCurrency(b.totalAmount, b.currency),
     location: b.address || "To be confirmed",
     rating:
@@ -198,6 +207,8 @@ function mapBookingToCard(b: CustomerBooking): Booking {
     notes: b.instructions ?? null,
     extras: Array.isArray(b.extras) ? b.extras : [],
     estimatedDurationMinutes: b.estimatedDurationMinutes ?? null,
+    referenceForPay: needsPayment ? b.reference : undefined,
+    needsPayment,
   };
 }
 
@@ -245,17 +256,20 @@ const BookingCard = ({
           {/* @ts-ignore */}
           {(() => {
             const s = String(booking.status || "").toLowerCase();
+            const isPaymentPending = booking.needsPayment === true;
             return (
           <span
             className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 ${
-              s === "completed"
-                ? "bg-emerald-50 text-emerald-600"
-                : s === "cancelled" || s === "failed"
-                  ? "bg-rose-50 text-rose-600"
-                  : "bg-blue-50 text-blue-600"
+              isPaymentPending
+                ? "bg-amber-50 text-amber-700"
+                : s === "completed"
+                  ? "bg-emerald-50 text-emerald-600"
+                  : s === "cancelled" || s === "failed"
+                    ? "bg-rose-50 text-rose-600"
+                    : "bg-blue-50 text-blue-600"
             }`}
           >
-            {customerFriendlyStatus(booking.status)}
+            {isPaymentPending ? "Payment pending" : customerFriendlyStatus(booking.status)}
           </span>
             );
           })()}
@@ -326,7 +340,15 @@ const BookingCard = ({
             >
               Reschedule / Cancel
             </button>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3 justify-end">
+              {booking.needsPayment && booking.referenceForPay ? (
+                <a
+                  href={`/booking/pay?ref=${encodeURIComponent(booking.referenceForPay)}`}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 shadow-sm"
+                >
+                  <CreditCard className="w-4 h-4" /> Pay now
+                </a>
+              ) : null}
               <button
                 className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50"
                 onClick={() => onViewDetails?.(booking)}
@@ -463,7 +485,15 @@ export const CustomerDashboard = ({
   const [messageText, setMessageText] = useState("");
   const [messageSaving, setMessageSaving] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
-  type MessageItem = { id: string; senderType: "customer" | "cleaner"; body: string; createdAt: string };
+  type MessageItem = {
+    id: string;
+    senderType: "customer" | "cleaner";
+    body: string;
+    createdAt: string;
+    status?: "sent" | "delivered" | "read";
+    deliveredAt?: string | null;
+    readAt?: string | null;
+  };
   const [messageList, setMessageList] = useState<MessageItem[]>([]);
   const [messageListLoading, setMessageListLoading] = useState(false);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number>(0);
@@ -547,11 +577,11 @@ export const CustomerDashboard = ({
   }, []);
 
   const unreadNotifications = notifications.filter((n) => !n.read).length;
+  const unreadList = notifications.filter((n) => !n.read);
+  const [allNotificationsOpen, setAllNotificationsOpen] = useState(false);
+  const [expandedNotificationId, setExpandedNotificationId] = useState<string | null>(null);
   const handleToggleNotifications = () => {
     setNotificationsOpen((open) => !open);
-    setNotifications((current) =>
-      current.map((n) => (n.read ? n : { ...n, read: true }))
-    );
   };
   const handleMarkAllRead = () => {
     setNotifications((current) => current.map((n) => ({ ...n, read: true })));
@@ -569,7 +599,7 @@ export const CustomerDashboard = ({
     }
     let cancelled = false;
     setMessageListLoading(true);
-    fetch(`/api/customer/messages?bookingId=${encodeURIComponent(messageBooking.bookingId)}`)
+    fetch(`/api/customer/messages?bookingId=${encodeURIComponent(messageBooking.bookingId)}&markRead=1`)
       .then((res) => (res.ok ? res.json() : Promise.resolve({ messages: [] })))
       .then((data: { messages?: MessageItem[] }) => {
         if (!cancelled && Array.isArray(data.messages)) {
@@ -831,7 +861,7 @@ export const CustomerDashboard = ({
                       </div>
                       {!notificationsLoading &&
                         !notificationsError &&
-                        notifications.some((n) => !n.read) && (
+                        unreadList.length > 0 && (
                           <button
                             type="button"
                             onClick={handleMarkAllRead}
@@ -846,13 +876,13 @@ export const CustomerDashboard = ({
                         <div className="px-4 py-6 text-xs text-slate-500">
                           Loading your latest alerts…
                         </div>
-                      ) : notifications.length === 0 ? (
+                      ) : unreadList.length === 0 ? (
                         <div className="px-4 py-6 text-xs text-slate-500">
                           You&apos;re all caught up. We&apos;ll let you know about new
                           bookings and updates here.
                         </div>
                       ) : (
-                        notifications.map((n) => (
+                        unreadList.map((n) => (
                           <div
                             key={n.id + n.time}
                             role="button"
@@ -862,9 +892,7 @@ export const CustomerDashboard = ({
                               (e.key === "Enter" || e.key === " ") &&
                               handleMarkOneRead(n.id)
                             }
-                            className={`px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-slate-50/80 cursor-pointer transition-colors ${
-                              n.read ? "bg-white" : "bg-blue-50/60"
-                            }`}
+                            className="px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-slate-50/80 cursor-pointer transition-colors bg-blue-50/60"
                           >
                             <div className="flex items-start gap-3">
                               <div className="mt-0.5">
@@ -872,15 +900,17 @@ export const CustomerDashboard = ({
                                   <Calendar className="w-4 h-4 text-blue-500" />
                                 ) : n.type === "payment" ? (
                                   <CreditCard className="w-4 h-4 text-emerald-500" />
+                                ) : n.type === "message" ? (
+                                  <MessageSquare className="w-4 h-4 text-indigo-500" />
                                 ) : (
                                   <AlertCircle className="w-4 h-4 text-amber-500" />
                                 )}
                               </div>
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <p className="text-xs font-semibold text-slate-900">
                                   {n.title}
                                 </p>
-                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
                                   {n.description}
                                 </p>
                                 <p className="text-[10px] text-slate-400 mt-1">
@@ -897,7 +927,17 @@ export const CustomerDashboard = ({
                         </div>
                       )}
                     </div>
-                    <div className="px-4 py-2 border-t border-slate-100 text-center">
+                    <div className="px-4 py-2 border-t border-slate-100 flex flex-col gap-1 text-center">
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          setAllNotificationsOpen(true);
+                        }}
+                      >
+                        View all notifications
+                      </button>
                       <button
                         type="button"
                         className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
@@ -910,6 +950,67 @@ export const CustomerDashboard = ({
                 )}
               </AnimatePresence>
             </div>
+            <Sheet open={allNotificationsOpen} onOpenChange={setAllNotificationsOpen}>
+              <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>All notifications</SheetTitle>
+                  <SheetDescription>
+                    Read and expand messages. Read items are hidden from the bell dropdown.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6 space-y-2">
+                  {notifications.length === 0 ? (
+                    <p className="text-sm text-slate-500 py-4">No notifications yet.</p>
+                  ) : (
+                    notifications.map((n) => {
+                      const isExpanded = expandedNotificationId === n.id;
+                      return (
+                        <div
+                          key={n.id + n.time}
+                          className={`rounded-xl border transition-colors ${
+                            n.read ? "border-slate-100 bg-slate-50/50" : "border-blue-100 bg-blue-50/40"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="w-full px-4 py-3 text-left flex items-start gap-3"
+                            onClick={() => {
+                              setExpandedNotificationId((id) => (id === n.id ? null : n.id));
+                              handleMarkOneRead(n.id);
+                            }}
+                          >
+                            <div className="mt-0.5 flex-shrink-0">
+                              {n.type === "upcoming" ? (
+                                <Calendar className="w-4 h-4 text-blue-500" />
+                              ) : n.type === "payment" ? (
+                                <CreditCard className="w-4 h-4 text-emerald-500" />
+                              ) : n.type === "message" ? (
+                                <MessageSquare className="w-4 h-4 text-indigo-500" />
+                              ) : (
+                                <AlertCircle className="w-4 h-4 text-amber-500" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-slate-900">{n.title}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {isExpanded ? n.description : n.description.length > 100 ? `${n.description.slice(0, 100)}…` : n.description}
+                              </p>
+                              {!isExpanded && n.description.length > 100 && (
+                                <span className="text-[11px] text-blue-600 font-medium mt-1 inline-block">Click to expand</span>
+                              )}
+                              <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
+                            </div>
+                            <span className={`flex-shrink-0 mt-1 transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+                              <ChevronRight className="w-4 h-4 text-slate-400" />
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
             <div className="relative">
               <button
                 onClick={() => {
@@ -2616,6 +2717,11 @@ export const CustomerDashboard = ({
                                   })
                                 : ""}
                             </p>
+                            {m.senderType === "customer" && (
+                              <p className="text-[10px] mt-0.5 text-blue-200/90">
+                                {m.status === "read" ? "Read" : m.status === "delivered" ? "Delivered" : "Sent"}
+                              </p>
+                            )}
                           </div>
                         </div>
                       ))
@@ -2660,10 +2766,10 @@ export const CustomerDashboard = ({
                             message: text,
                           }),
                         });
+                        const body = (await res.json().catch(() => null)) as
+                          | { error?: string; messageId?: string }
+                          | null;
                         if (!res.ok) {
-                          const body = (await res.json().catch(() => null)) as
-                            | { error?: string }
-                            | null;
                           throw new Error(
                             body?.error || "We could not send your message. Please try again.",
                           );
@@ -2671,13 +2777,23 @@ export const CustomerDashboard = ({
                         setMessageList((prev) => [
                           ...prev,
                           {
-                            id: `temp-${Date.now()}`,
+                            id: body?.messageId ?? `temp-${Date.now()}`,
                             senderType: "customer" as const,
                             body: text,
                             createdAt: new Date().toISOString(),
+                            status: "sent" as const,
                           },
                         ]);
                         setMessageText("");
+                        // Refetch after a short delay to show Delivered/Read when recipient views
+                        setTimeout(() => {
+                          fetch(`/api/customer/messages?bookingId=${encodeURIComponent(messageBooking.bookingId)}`)
+                            .then((r) => (r.ok ? r.json() : Promise.resolve({ messages: [] })))
+                            .then((data: { messages?: MessageItem[] }) => {
+                              if (Array.isArray(data.messages)) setMessageList(data.messages);
+                            })
+                            .catch(() => {});
+                        }, 3000);
                       } catch (err) {
                         setMessageError(
                           err instanceof Error

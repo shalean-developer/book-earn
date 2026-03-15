@@ -9,7 +9,7 @@ export type CleanerNotification = {
   description: string;
   time: string;
   read: boolean;
-  type: "job_assigned" | "job_confirmed" | "job_update" | "other";
+  type: "job_assigned" | "job_confirmed" | "job_update" | "message" | "other";
 };
 
 export async function GET(req: NextRequest) {
@@ -54,6 +54,32 @@ export async function GET(req: NextRequest) {
     }
 
     const list = (rows ?? []) as any[];
+
+    const bookingIds = list.map((r) => r.id).filter(Boolean);
+    let messageBookings: { booking_id: string; created_at: string; body: string }[] = [];
+    if (bookingIds.length > 0) {
+      const { data: msgRows } = await supabase
+        .from("booking_messages")
+        .select("booking_id, created_at, body")
+        .eq("sender_type", "customer")
+        .in("status", ["sent", "delivered"])
+        .in("booking_id", bookingIds)
+        .order("created_at", { ascending: false });
+      const byBooking = new Map<string, { created_at: string; body: string }>();
+      for (const m of msgRows ?? []) {
+        const bid = String(m.booking_id ?? "");
+        if (!bid || byBooking.has(bid)) continue;
+        byBooking.set(bid, {
+          created_at: String(m.created_at ?? ""),
+          body: String(m.body ?? "").slice(0, 60),
+        });
+      }
+      messageBookings = Array.from(byBooking.entries()).map(([booking_id, rest]) => ({
+        booking_id,
+        ...rest,
+      }));
+    }
+
     const notifications: CleanerNotification[] = list.map((row) => {
       const bookingId = row.id?.toString() ?? "booking";
       const ref = formatBookingCode(bookingId);
@@ -106,6 +132,31 @@ export async function GET(req: NextRequest) {
         type,
       };
     });
+
+    for (const msg of messageBookings) {
+      const row = list.find((r) => String(r.id) === msg.booking_id);
+      if (!row) continue;
+      const ref = formatBookingCode(msg.booking_id);
+      const customerName = row.name ?? "Customer";
+      const service = row.service ?? "Cleaning";
+      const timeLabel = msg.created_at
+        ? new Date(msg.created_at).toLocaleString("en-ZA", {
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "Recently";
+      const preview = msg.body ? (msg.body.length > 60 ? `${msg.body}…` : msg.body) : "New message";
+      notifications.unshift({
+        id: `msg-${msg.booking_id}`,
+        title: "New message from customer",
+        description: `${customerName} – ${service} (${ref}): ${preview}`,
+        time: timeLabel,
+        read: false,
+        type: "message",
+      });
+    }
 
     return NextResponse.json({ notifications }, { status: 200 });
   } catch (err) {
