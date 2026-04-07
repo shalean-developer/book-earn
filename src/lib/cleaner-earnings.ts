@@ -13,7 +13,13 @@ const FLAT_EARNINGS_RANDS = 250;
 
 function isStandardOrAirbnb(service: string): boolean {
   const s = (service ?? "").toLowerCase().trim();
-  return s.includes("standard") || s === "airbnb" || s.includes("airbnb");
+  return (
+    s.includes("standard") ||
+    s === "airbnb" ||
+    s.includes("airbnb") ||
+    s === "laundry" ||
+    s.includes("laundry")
+  );
 }
 
 function isCarpetDeepOrMove(service: string): boolean {

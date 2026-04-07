@@ -17,9 +17,9 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Shalean Cleaning Services - Find & Book Trusted Service Professionals",
+  title: "Bokkies - Find & Book Trusted Service Professionals",
   description: "Book verified professionals for home cleaning, plumbing, car services, and more. Instant booking, secure payments, and quality guaranteed.",
-  keywords: "service booking, home services, cleaning, plumbing, handyman, book professionals, Shalean",
+  keywords: "service booking, home services, cleaning, plumbing, handyman, book professionals, Bokkies",
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -30,14 +30,14 @@ export const metadata: Metadata = {
   },
   manifest: "/site.webmanifest",
   openGraph: {
-    title: "Shalean Cleaning Services - Find & Book Trusted Service Professionals",
+    title: "Bokkies - Find & Book Trusted Service Professionals",
     description: "Book verified professionals for any service. From home cleaning to car repair — all in one place.",
     type: "website",
     url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Shalean Cleaning Services - Find & Book Trusted Service Professionals",
+    title: "Bokkies - Find & Book Trusted Service Professionals",
     description: "Book verified professionals for any service. From home cleaning to car repair — all in one place.",
   },
 };
@@ -52,12 +52,12 @@ export default function RootLayout({
       <body className={`${inter.variable} ${outfit.variable} font-sans`}>
         <script
           type="application/ld+json"
-          // Local SEO: describe Shalean as a Cape Town cleaning business
+          // Local SEO: describe Bokkies as a Cape Town cleaning business
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "LocalBusiness",
-              name: "Shalean Cleaning Services",
+              name: "Bokkies",
               description:
                 "Professional home, office and Airbnb cleaning services in Cape Town and surrounding suburbs.",
               url: SITE_URL,

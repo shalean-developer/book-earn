@@ -1,5 +1,32 @@
 import { createClient } from "./supabase-server";
 import type { PricingBreakdown } from "./types/booking";
+import { computeDynamicPricing } from "./pricing-engine";
+
+/**
+ * Per-unit prices when `pricing_config` has no `extra:<id>` row (keep aligned with BookingSystem extras).
+ */
+const EXTRA_PRICE_FALLBACK: Record<string, number> = {
+  fridge: 30,
+  oven: 30,
+  windows: 40,
+  cabinets: 30,
+  walls: 35,
+  extra_cleaner: 350,
+  laundry_load: 85,
+  ironing: 28,
+  linen_refresh: 95,
+  guest_supplies: 45,
+  delicates: 45,
+  stain_treatment: 55,
+  equipment: 0,
+  balcony: 250,
+  carpet_deep: 300,
+  ceiling: 300,
+  couch: 130,
+  garage: 110,
+  mattress: 350,
+  outside_windows: 125,
+};
 
 export interface ServicePricingConfig {
   basePrice?: number;
@@ -31,6 +58,8 @@ export interface ServicePricingConfig {
    */
   weeklyDiscount?: number;
   multiWeekDiscount?: number;
+  biWeeklyDiscount?: number;
+  monthlyDiscount?: number;
   /**
    * Optional per-booking fees.
    */
@@ -78,6 +107,7 @@ export async function getServicePricingConfig(
   if (normalized === "airbnb") dbServiceType = "Airbnb";
   if (normalized === "carpet") dbServiceType = "Carpet";
   if (normalized === "move") dbServiceType = "Move In/Out";
+  if (normalized === "laundry") dbServiceType = "Laundry & Ironing";
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10); // YYYY-MM-DD
@@ -183,6 +213,13 @@ export async function getServicePricingConfig(
       case "frequency_discount_multiweek":
         result.multiWeekDiscount = row.price;
         break;
+      case "frequency_discount_bi_weekly":
+      case "frequency_discount_biweekly":
+        result.biWeeklyDiscount = row.price;
+        break;
+      case "frequency_discount_monthly":
+        result.monthlyDiscount = row.price;
+        break;
       case "service_fee":
         result.serviceFee = row.price;
         break;
@@ -209,6 +246,16 @@ export async function getServicePricingConfig(
           else if (name.includes("mattress")) extraId = "mattress";
           else if (name.includes("outside window") || name.includes("outside windows"))
             extraId = "outside_windows";
+          else if (
+            name.includes("laundry load") ||
+            (name.includes("wash") && name.includes("fold"))
+          )
+            extraId = "laundry_load";
+          else if (name.includes("ironing")) extraId = "ironing";
+          else if (name.includes("linen")) extraId = "linen_refresh";
+          else if (name.includes("guest") && name.includes("supply")) extraId = "guest_supplies";
+          else if (name.includes("delicate")) extraId = "delicates";
+          else if (name.includes("stain")) extraId = "stain_treatment";
 
           if (extraId) {
             result.extras[extraId] = row.price;
@@ -219,6 +266,65 @@ export async function getServicePricingConfig(
   }
 
   return result;
+}
+
+async function resolvePromoDiscountAmount(args: {
+  promoCode: string | undefined;
+  serviceType: string;
+  applyToAmount: number;
+}): Promise<number> {
+  const normalized = args.promoCode?.toUpperCase().trim();
+  if (!normalized) return 0;
+
+  const supabase = await createClient();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("promo_codes")
+    .select(
+      "code, percentage_off, amount_off, is_active, start_date, end_date, service_type"
+    )
+    .eq("code", normalized)
+    .eq("is_active", true)
+    .lte("start_date", today)
+    .or(`end_date.is.null,end_date.gte.${today}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return 0;
+  }
+
+  if (
+    args.serviceType &&
+    data.service_type &&
+    data.service_type !== args.serviceType
+  ) {
+    return 0;
+  }
+
+  const base = Math.max(0, args.applyToAmount);
+  const percentageOff = Number(data.percentage_off ?? 0);
+  const amountOff = Number(data.amount_off ?? 0);
+
+  if (percentageOff > 0) {
+    return Math.round(base * percentageOff);
+  }
+  if (amountOff > 0) {
+    return Math.min(base, amountOff);
+  }
+  return 0;
+}
+
+function mapServiceForPromo(service: string): string {
+  const s = service.toLowerCase();
+  if (s === "standard") return "standard";
+  if (s === "deep") return "deep";
+  if (s === "airbnb") return "airbnb";
+  if (s === "carpet") return "carpet";
+  if (s === "move") return "move";
+  if (s === "laundry") return "laundry";
+  return service;
 }
 
 /**
@@ -244,6 +350,14 @@ export async function computePricingForBooking(booking: {
   tipAmount?: number;
   promoCode?: string;
   cleaningFrequency?: string;
+  /** YYYY-MM-DD — used for weekend surcharge */
+  date?: string;
+  /** HH:mm — used for peak surcharge */
+  time?: string;
+  /** Suburb / working area — area multiplier */
+  workingArea?: string;
+  /** When "customer", per-booking equipment fee from config is not applied */
+  equipmentMode?: "shalean" | "customer";
 }): Promise<PricingBreakdown> {
   const config = await getServicePricingConfig(booking.service);
 
@@ -366,19 +480,24 @@ export async function computePricingForBooking(booking: {
   }
 
   const extrasTotal = booking.extras.reduce((sum, id) => {
-    const overridePrice = config.extras[id];
-    if (overridePrice != null) {
-      return sum + overridePrice;
+    const fromConfig = config.extras[id];
+    const unit =
+      fromConfig != null ? fromConfig : EXTRA_PRICE_FALLBACK[id];
+    if (unit == null) {
+      return sum;
     }
-    return sum;
+    return sum + unit;
   }, 0);
 
   const tipAmount = booking.tipAmount ?? 0;
 
   const serviceFee = config.serviceFee ?? 0;
-  const equipmentCharge = config.equipmentCharge ?? 0;
+  const equipmentCharge =
+    booking.equipmentMode === "customer"
+      ? 0
+      : config.equipmentCharge ?? 0;
 
-  const subtotal =
+  const lineSubtotal =
     basePrice +
     bedroomAdd +
     bathroomAdd +
@@ -393,22 +512,39 @@ export async function computePricingForBooking(booking: {
     serviceFee +
     equipmentCharge;
 
-  // Frequency discount (e.g. weekly / multiple times a week) from pricing_config
-  let frequencyDiscountAmount = 0;
-  const cleaningFrequency = (booking.cleaningFrequency ?? "").toLowerCase();
-  if (cleaningFrequency === "weekly" && config.weeklyDiscount != null) {
-    frequencyDiscountAmount = Math.round(subtotal * config.weeklyDiscount);
-  } else if (
-    cleaningFrequency === "multi_week" &&
-    config.multiWeekDiscount != null
-  ) {
-    frequencyDiscountAmount = Math.round(subtotal * config.multiWeekDiscount);
-  }
+  const draft = computeDynamicPricing({
+    lineSubtotal,
+    cleaningFrequency: booking.cleaningFrequency ?? "once",
+    weeklyDiscount: config.weeklyDiscount,
+    multiWeekDiscount: config.multiWeekDiscount,
+    biWeeklyDiscount: config.biWeeklyDiscount,
+    monthlyDiscount: config.monthlyDiscount,
+    date: booking.date,
+    time: booking.time,
+    workingArea: booking.workingArea,
+    promoDiscountAmount: 0,
+    tipAmount,
+  });
 
-  let discountAmount = frequencyDiscountAmount;
-  const promoCode = booking.promoCode?.toUpperCase().trim();
+  const promoDiscountAmount = await resolvePromoDiscountAmount({
+    promoCode: booking.promoCode,
+    serviceType: mapServiceForPromo(booking.service),
+    applyToAmount: draft.afterAreaSubtotal,
+  });
 
-  const total = Math.max(0, subtotal - discountAmount) + tipAmount;
+  const final = computeDynamicPricing({
+    lineSubtotal,
+    cleaningFrequency: booking.cleaningFrequency ?? "once",
+    weeklyDiscount: config.weeklyDiscount,
+    multiWeekDiscount: config.multiWeekDiscount,
+    biWeeklyDiscount: config.biWeeklyDiscount,
+    monthlyDiscount: config.monthlyDiscount,
+    date: booking.date,
+    time: booking.time,
+    workingArea: booking.workingArea,
+    promoDiscountAmount,
+    tipAmount,
+  });
 
   return {
     basePrice,
@@ -423,11 +559,15 @@ export async function computePricingForBooking(booking: {
     carpetExtraCleanerAdd,
     extrasTotal,
     tipAmount,
-    discountAmount,
+    discountAmount: final.discountAmount,
     serviceFee,
     equipmentCharge,
-    subtotal,
-    total,
+    subtotal: lineSubtotal,
+    peakCharge: final.peakCharge,
+    weekendCharge: final.weekendCharge,
+    areaMultiplier: final.areaMultiplier,
+    afterAreaSubtotal: final.afterAreaSubtotal,
+    total: final.total,
   };
 }
 

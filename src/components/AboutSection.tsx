@@ -1,7 +1,15 @@
 "use client";
 
 import React from "react";
-import { CheckCircle2, Home } from "lucide-react";
+import {
+  Sparkles,
+  Droplet,
+  Home,
+  Briefcase,
+  Building2,
+  Hotel,
+  ArrowRight,
+} from "lucide-react";
 import { motion } from "framer-motion";
 
 type PageType =
@@ -22,59 +30,128 @@ interface AboutSectionProps {
   onNavigate: (page: PageType) => void;
 }
 
-const FEATURES = [
-  "Professional & Trusted Team",
-  "Eco-Friendly Cleaning Products",
-  "Satisfaction Guaranteed",
-  "Flexible Booking",
-];
+/** Matches home marketing palette in ShaleanWebsite (home route only). */
+const BG = "#EFF6FF";
+const CARD = "#FFFFFF";
+const PRIMARY = "#2563EB";
+const TEXT = "#0F172A";
+
+const SERVICES = [
+  {
+    title: "Standard Clean",
+    description:
+      "Recurring cleans for every room. Surfaces, floors, and fixtures covered.",
+    Icon: Sparkles,
+  },
+  {
+    title: "Deep Clean",
+    description:
+      "Top-to-bottom reset for a full refresh. More than a standard clean.",
+    Icon: Droplet,
+  },
+  {
+    title: "Airbnb Clean",
+    description:
+      "Quick turnovers between guests. Checklist-style, review-ready results.",
+    Icon: Hotel,
+  },
+  {
+    title: "Move In / Out",
+    description:
+      "Spotless handovers and move-in prep. Ready for keys or your first night in.",
+    Icon: Home,
+  },
+  {
+    title: "Office Clean",
+    description:
+      "Professional, hygienic workspace care. Booked around your business hours.",
+    Icon: Briefcase,
+  },
+  {
+    title: "Post Construction",
+    description:
+      "Dust and debris cleared after builds. Move in once the site is finished.",
+    Icon: Building2,
+  },
+] as const;
 
 export const AboutSection = ({ onNavigate }: AboutSectionProps) => {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.5 }}
-      className="grid lg:grid-cols-2 gap-6 lg:gap-8 min-h-[400px]"
+      transition={{ duration: 0.45 }}
+      aria-labelledby="what-we-offer-heading"
+      style={{ backgroundColor: BG }}
     >
-      {/* Left — Text card */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 md:p-10 lg:p-12 flex flex-col justify-center order-2 lg:order-1">
-        <div className="inline-flex items-center gap-2 bg-slate-100 text-slate-600 px-4 py-2 rounded-full text-sm font-medium mb-6 w-fit">
-          <Home className="w-4 h-4" />
-          About Us
+      <div className="mb-8 flex flex-col gap-6 sm:mb-10 sm:flex-row sm:items-end sm:justify-between sm:gap-8 md:mb-12">
+        <div>
+          <p
+            className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]"
+            style={{ color: PRIMARY }}
+          >
+            What we offer
+          </p>
+          <h2
+            id="what-we-offer-heading"
+            className="text-3xl font-bold tracking-tight md:text-4xl"
+            style={{ color: TEXT }}
+          >
+            Every clean, tailored to you
+          </h2>
         </div>
-        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 leading-tight mb-6">
-          Bringing Freshness, Comfort, and Care to Every Home
-        </h2>
-        <p className="text-slate-600 text-base md:text-lg leading-relaxed mb-8">
-          At Shalean, we go beyond surface cleaning – we bring life back to
-          your space. Our dedicated team combines expert care, eco-friendly
-          solutions, and attention to detail to ensure every home feels fresh.
-        </p>
-        <ul className="space-y-4 mb-8">
-          {FEATURES.map((feature, i) => (
-            <li key={i} className="flex items-center gap-3">
-              <CheckCircle2 className="w-6 h-6 text-blue-600 shrink-0" />
-              <span className="text-slate-800 font-medium">{feature}</span>
-            </li>
-          ))}
-        </ul>
         <button
-          onClick={() => onNavigate("about")}
-          className="inline-flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 font-semibold text-base px-8 py-4 text-white shadow-md transition-colors w-fit"
+          type="button"
+          onClick={() => onNavigate("services")}
+          className="flex shrink-0 items-center gap-1 self-start text-sm font-medium text-[#2563EB] underline decoration-[#93C5FD] underline-offset-4 transition-colors hover:text-[#1D4ED8] sm:self-auto"
         >
-          Learn More
+          View all services
+          <ArrowRight className="h-4 w-4" strokeWidth={2} aria-hidden />
         </button>
       </div>
 
-      {/* Right — Image card */}
-      <div className="relative min-h-[280px] lg:min-h-0 order-1 lg:order-2 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-        <img
-          src="/hero-cleaning-team.png"
-          alt="Professional cleaning team"
-          className="absolute inset-0 w-full h-full object-cover object-center"
-        />
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {SERVICES.map(({ title, description, Icon }) => (
+          <article
+            key={title}
+            className="flex min-h-[200px] flex-col gap-5 rounded-xl border border-[#BFDBFE] p-6 shadow-sm sm:min-h-[220px] sm:flex-row sm:items-stretch sm:gap-4 sm:p-6"
+            style={{ backgroundColor: CARD }}
+          >
+            <div className="flex min-w-0 flex-1 flex-col justify-between">
+              <div>
+                <h3
+                  className="text-lg font-bold leading-snug md:text-xl"
+                  style={{ color: TEXT }}
+                >
+                  {title}
+                </h3>
+                <p className="mt-2 max-w-[min(100%,17rem)] text-pretty text-sm leading-[1.35] text-slate-600 md:max-w-[18rem] md:text-[15px]">
+                  {description}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate("services")}
+                className="mt-5 inline-flex w-fit rounded-full bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8] sm:mt-6"
+              >
+                Details
+              </button>
+            </div>
+            <div
+              className="flex shrink-0 items-end justify-center sm:w-[112px] md:w-[120px]"
+              aria-hidden
+            >
+              <div className="flex h-[100px] w-[100px] items-center justify-center rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:h-[112px] sm:w-[112px]">
+                <Icon
+                  className="h-[52px] w-[52px] sm:h-14 sm:w-14"
+                  style={{ color: PRIMARY }}
+                  strokeWidth={1.35}
+                />
+              </div>
+            </div>
+          </article>
+        ))}
       </div>
     </motion.div>
   );

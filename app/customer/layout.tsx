@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { SITE_URL } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Dashboard – Shalean",
-  description: "Your Shalean customer dashboard – manage bookings and account.",
+  title: "Dashboard – Bokkies",
+  description: "Your Bokkies customer dashboard – manage bookings and account.",
   alternates: { canonical: `${SITE_URL}/customer` },
   robots: { index: false, follow: false },
   openGraph: {
     url: `${SITE_URL}/customer`,
-    title: "Dashboard – Shalean",
+    title: "Dashboard – Bokkies",
     type: "website",
   },
 };

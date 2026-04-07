@@ -345,6 +345,8 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
             {SERVICES_DETAIL.map((service, idx) => (
               <motion.div
                 key={service.id}
+                id={service.id}
+                className="scroll-mt-28"
                 initial={{
                   opacity: 0,
                   y: 20,

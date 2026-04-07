@@ -36,6 +36,8 @@ export async function GET(req: NextRequest) {
           carpetExtraCleanerPer: config.carpetExtraCleanerPer ?? null,
           weeklyDiscount: config.weeklyDiscount ?? null,
           multiWeekDiscount: config.multiWeekDiscount ?? null,
+          biWeeklyDiscount: config.biWeeklyDiscount ?? null,
+          monthlyDiscount: config.monthlyDiscount ?? null,
           serviceFee: config.serviceFee ?? null,
           equipmentCharge: config.equipmentCharge ?? null,
         },

@@ -29,13 +29,13 @@ export async function generateMetadata({
   const loc = LOCATIONS.find((l) => l.slug === slug);
   if (!loc)
     return {
-      title: "Location – Shalean Cleaning Services",
+      title: "Location – Bokkies",
       alternates: { canonical: `${SITE_URL}/locations` },
       openGraph: { url: `${SITE_URL}/locations`, type: "website" },
     };
   const url = `${SITE_URL}/locations/${slug}`;
-  const title = `Cleaning Services in ${loc.name} – Shalean`;
-  const description = `Professional home and office cleaning in ${loc.name}, Cape Town. Book trusted Shalean cleaners with same-week availability.`;
+  const title = `Cleaning Services in ${loc.name} – Bokkies`;
+  const description = `Professional home and office cleaning in ${loc.name}, Cape Town. Book trusted Bokkies cleaners with same-week availability.`;
   return {
     title,
     description,

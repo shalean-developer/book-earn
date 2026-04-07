@@ -4,15 +4,15 @@ import Image from "next/image";
 import { SITE_URL } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Cancellation policy – Shalean Cleaning Services",
+  title: "Cancellation policy – Bokkies",
   description:
-    "Cancellation and refund policy for Shalean cleaning bookings in Cape Town.",
+    "Cancellation and refund policy for Bokkies cleaning bookings in Cape Town.",
   alternates: { canonical: `${SITE_URL}/cancellation-policy` },
   openGraph: {
     url: `${SITE_URL}/cancellation-policy`,
-    title: "Cancellation policy – Shalean Cleaning Services",
+    title: "Cancellation policy – Bokkies",
     description:
-      "Cancellation and refund policy for Shalean cleaning bookings in Cape Town.",
+      "Cancellation and refund policy for Bokkies cleaning bookings in Cape Town.",
     type: "website",
   },
 };

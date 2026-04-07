@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Clock, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, ArrowRight, BookOpen, Sparkles } from "lucide-react";
 
 type PageType =
   | "home"
@@ -20,69 +21,63 @@ type PageType =
 const cleaningArticles = [
   {
     title: "Complete Guide to Deep Cleaning Your Home",
-    category: "Deep Cleaning",
+    category: "Deep cleaning",
+    author: "Mara Osei",
     readTime: "7 min read",
-    level: "Intermediate",
     image:
       "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
     summary:
       "Tackle those forgotten corners with a room‑by‑room checklist for a true deep clean that feels like a reset for your whole home.",
-    tags: ["Checklist", "Kitchen", "Bathroom"],
   },
   {
     title: "Weekly Cleaning Routine for Busy Households",
-    category: "Routine Cleaning",
+    category: "Routine cleaning",
+    author: "James Whitfield",
     readTime: "5 min read",
-    level: "Easy",
     image:
       "https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?auto=format&fit=crop&w=900&q=80",
     summary:
       "A realistic, time‑boxed routine you can actually stick to — broken into quick 15‑minute sessions throughout the week.",
-    tags: ["Routine", "Time‑saving", "Family"],
   },
   {
     title: "Airbnb & Short‑Stay Turnover Cleaning Checklist",
-    category: "Airbnb & Hosts",
+    category: "Airbnb & hosts",
+    author: "Lindiwe Mokoena",
     readTime: "6 min read",
-    level: "Pro",
     image:
       "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=900&q=80",
     summary:
       "Everything hosts need between guests — from linens to little touches that help you maintain 5‑star cleanliness ratings.",
-    tags: ["Airbnb", "Checklist", "Hosts"],
   },
   {
     title: "Move‑In / Move‑Out Cleaning Essentials",
     category: "Moving",
+    author: "Thabo Nkosi",
     readTime: "4 min read",
-    level: "Intermediate",
     image:
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80",
     summary:
       "Secure your deposit and hand over a truly spotless space with a structured approach to move‑related cleaning.",
-    tags: ["Moving", "Landlords", "Deposits"],
   },
   {
     title: "Kid‑ and Pet‑Friendly Cleaning Tips",
-    category: "Family Homes",
+    category: "Family homes",
+    author: "Aisha van der Berg",
     readTime: "5 min read",
-    level: "Easy",
     image:
       "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=900&q=80",
     summary:
       "Safer, low‑tox options and routines designed for busy homes with little ones and furry friends.",
-    tags: ["Family", "Pets", "Safety"],
   },
   {
     title: "How Often Should You Really Clean Everything?",
-    category: "Home Care",
+    category: "Home care",
+    author: "Daniel Pretorius",
     readTime: "8 min read",
-    level: "Easy",
     image:
       "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=900&q=80",
     summary:
       "From bedding to the oven, find out what should be cleaned daily, weekly, monthly, and yearly.",
-    tags: ["Schedules", "Planning", "Guide"],
   },
 ] as const;
 
@@ -259,69 +254,70 @@ export const BlogPage = ({
           </div>
         </section>
 
-        {/* Articles grid */}
-        <section>
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+        {/* Articles — dark horizontal cards */}
+        <section className="rounded-3xl bg-black px-4 py-12 sm:px-8 md:px-10 md:py-16 -mx-6 sm:mx-0">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8 md:mb-10">
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-                Latest Cleaning Guides
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                Latest cleaning guides
               </h2>
-              <p className="text-slate-600 max-w-xl">
+              <p className="text-neutral-400 max-w-xl">
                 Start with whatever feels most urgent: deep cleaning, weekly
                 routines, hosting guests, or getting ready to move.
               </p>
             </div>
             <button
+              type="button"
               onClick={() => onNavigate("booking")}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 hover:bg-black text-sm font-semibold px-5 py-2.5 text-white shadow-md transition-colors self-start md:self-auto"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-sm font-semibold px-5 py-2.5 text-emerald-400 transition hover:bg-emerald-500/20 self-start md:self-auto"
             >
               Prefer done‑for‑you cleaning?
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6">
             {cleaningArticles.map((article) => (
               <article
                 key={article.title}
-                className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col hover:border-blue-200 hover:-translate-y-1 hover:shadow-md transition-all"
+                className="group flex flex-col sm:flex-row overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/90 shadow-lg transition hover:border-neutral-600"
               >
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <img
+                <div className="relative aspect-[5/3] w-full shrink-0 sm:aspect-auto sm:w-[38%] sm:min-h-[200px]">
+                  <Image
                     src={article.image}
                     alt={article.title}
-                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    fill
+                    className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                    sizes="(max-width: 768px) 100vw, 30vw"
                   />
-                  <div className="absolute top-3 left-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-900/80 text-white">
-                    {article.category}
-                  </div>
                 </div>
-                <div className="p-5 flex flex-col flex-1">
-                  <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-                    <Clock className="w-3 h-3" />
-                    <span>{article.readTime}</span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                    <span className="font-medium text-emerald-600">
-                      {article.level}
-                    </span>
-                  </div>
-                  <h3 className="font-semibold text-slate-900 mb-2 leading-snug">
+                <div className="flex min-w-0 flex-1 flex-col justify-center p-5 md:p-6">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                    {article.category}
+                  </p>
+                  <h3 className="mt-2 text-base font-bold leading-snug text-white md:text-lg">
                     {article.title}
                   </h3>
-                  <p className="text-sm text-slate-600 leading-relaxed mb-4 flex-1">
+                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-neutral-400">
                     {article.summary}
                   </p>
-                  <div className="flex flex-wrap gap-1.5 mb-4">
-                    {article.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2.5 py-1 rounded-full bg-slate-50 text-[11px] font-medium text-slate-600 border border-slate-100"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                  <div className="mt-4 flex items-center gap-2 text-xs text-neutral-400">
+                    <span
+                      className="h-7 w-7 shrink-0 rounded-full bg-neutral-700 ring-1 ring-neutral-600"
+                      aria-hidden
+                    />
+                    <span className="font-medium text-neutral-300">
+                      {article.author}
+                    </span>
+                    <span className="text-neutral-600" aria-hidden>
+                      •
+                    </span>
+                    <span>{article.readTime}</span>
                   </div>
-                  <button className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700">
+                  <button
+                    type="button"
+                    className="mt-4 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-400/90 transition hover:text-emerald-300"
+                  >
                     Read guide
                     <ArrowRight className="w-4 h-4" />
                   </button>

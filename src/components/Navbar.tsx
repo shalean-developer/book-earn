@@ -32,13 +32,13 @@ const Navbar = () => {
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/logo.png"
-              alt="Shalean"
+              alt="Bokkies"
               width={36}
               height={36}
               className="h-9 w-9 object-contain"
             />
             <span className="font-display font-bold text-xl text-foreground">
-              Shalean Cleaning Services
+              Bokkies
             </span>
           </Link>
 

@@ -1,7 +1,8 @@
  "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
+  ChevronLeft,
   ChevronRight,
   CheckCircle2,
   Star,
@@ -18,13 +19,14 @@ import {
   Sparkles,
   Wind,
   MapPin,
+  Droplets,
+  Truck,
+  Search,
+  Globe,
   ArrowRight,
   Plus,
   Minus,
-  Briefcase,
   Users,
-  Facebook,
-  Instagram,
   Linkedin,
   HelpCircle,
   CreditCard,
@@ -39,14 +41,15 @@ import {
   BookOpen,
   TrendingUp,
   ChevronDown,
+  ChevronUp,
   ExternalLink,
   FileText,
-  Twitter,
   LayoutDashboard,
   LogOut,
+  Briefcase,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookingSystem } from "./BookingSystem";
+import { BookingSystem, getBookingServiceUrlSlug } from "./BookingSystem";
 import { ServicesPage } from "./ServicesPage";
 import { PricingPage } from "./PricingPage";
 import { LocationsPage } from "./LocationsPage";
@@ -55,10 +58,12 @@ import { AboutSection } from "./AboutSection";
 import { CareersPage } from "./CareersPage";
 import { ContactPage } from "./ContactPage";
 import { BlogPage } from "./BlogPage";
+import Footer from "./Footer";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 // Dashboards now live on dedicated routes with real auth,
 // so the old in-component dashboard imports are no longer needed.
 
@@ -75,6 +80,23 @@ type PageType =
   | "careers"
   | "pricing";
 
+/** Prefill when opening booking from the site: service in URL, address via session (not in URL). */
+type BookingRoutePrefill = {
+  service?: string;
+  address?: string;
+};
+
+/** Home marketing palette (used only on `/` in this file). */
+const HOME = {
+  primary: "#2563EB",
+  primaryHover: "#1D4ED8",
+  primaryLight: "#60A5FA",
+  background: "#EFF6FF",
+  accent: "#14B8A6",
+  accentHover: "#0D9488",
+  textDark: "#0F172A",
+} as const;
+
 const LOCATIONS = [
   { name: "Sea Point", slug: "sea-point" },
   { name: "Claremont", slug: "claremont" },
@@ -88,24 +110,151 @@ const LOCATIONS = [
 
 const FAQS = [
   {
-    q: "Are your cleaners vetted?",
-    a: "Yes, every professional on our platform undergoes a rigorous background check and vetting process.",
+    q: "Do I need to be home during the cleaning?",
+    a: "No — it's up to you. Many clients share access instructions or a spare key; others prefer to be there. Just let us know what works best.",
   },
   {
-    q: "Do I need to be home?",
-    a: "It's entirely up to you. Many clients provide access instructions, while others prefer to be present.",
+    q: "What supplies do you use?",
+    a: "Our teams bring standard, professional-grade supplies for a typical home clean. If you have preferred products or allergies, tell us when you book.",
   },
   {
-    q: "What if I'm not happy?",
-    a: "We offer a 100% satisfaction guarantee. If anything is missed, we'll return to fix it at no cost.",
+    q: "How do I schedule a recurring cleaning?",
+    a: "Choose a weekly, biweekly, or monthly cadence when you book (or ask support to set it up). You'll get consistent time slots and simplified billing.",
   },
   {
-    q: "Do you bring your own supplies?",
-    a: "By default, our cleaners bring standard supplies. Heavy equipment like vacuum cleaners can be requested for a small fee.",
+    q: "Is there a cancellation fee?",
+    a: "Cancellations within the notice window in our policy may incur a fee; rescheduling with enough notice is usually free. Check your confirmation or contact us for your booking.",
+  },
+  {
+    q: "Do you clean commercial office spaces?",
+    a: "Yes — we offer commercial and office cleaning with schedules and billing suited to teams. Use Get a quote or contact support for larger spaces.",
   },
 ] as { q: string; a: string }[];
 
+const HAPPY_CUSTOMER_TESTIMONIALS = [
+  {
+    quote:
+      "Shalean did such an awesome job! They were even mindful of using natural cleaning products for my kiddos room, which I was so appreciative of.",
+    name: "Rebecca Hawland",
+    avatar:
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
+  },
+  {
+    quote:
+      "Great response time, staff was on time and got the job done pretty quickly. House looked great when they finished. If anyone needs a clean home contact them.",
+    name: "Annie Bennedict",
+    avatar:
+      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80",
+  },
+  {
+    quote:
+      "We've booked monthly deep cleans for over a year. Consistent quality, a friendly team, and they always respect our home and belongings.",
+    name: "Andy Toy",
+    avatar:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
+  },
+  {
+    quote:
+      "Clear communication from booking to finish. The crew was thorough in the kitchen and bathrooms — exactly what we needed before family visited.",
+    name: "Sarah Mitchell",
+    avatar:
+      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
+  },
+  {
+    quote:
+      "Professional, punctual, and careful with our pets in the house. We've recommended Shalean to several neighbours already.",
+    name: "James Nkosi",
+    avatar:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
+  },
+  {
+    quote:
+      "Fair pricing and no surprises on the day. The team asked about priorities and delivered — our office has never looked better.",
+    name: "Priya Govender",
+    avatar:
+      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80",
+  },
+] as const;
+
 // --- Sub-components ---
+
+function HappyCustomersTestimonials() {
+  const perPage = 3;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(HAPPY_CUSTOMER_TESTIMONIALS.length / perPage);
+  const start = page * perPage;
+  const visible = HAPPY_CUSTOMER_TESTIMONIALS.slice(start, start + perPage);
+
+  return (
+    <div style={{ color: HOME.textDark }}>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p
+            className="text-sm font-medium italic"
+            style={{ color: HOME.primary }}
+          >
+            Client Testimonials
+          </p>
+          <h3 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">
+            Our Happy Customers
+          </h3>
+        </div>
+        <div className="flex shrink-0 gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            aria-label="Previous testimonials"
+            onClick={() => setPage((p) => (p - 1 + totalPages) % totalPages)}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#BFDBFE] bg-white text-[#2563EB] shadow-sm transition-colors hover:bg-[#EFF6FF]"
+          >
+            <ChevronLeft className="h-5 w-5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="Next testimonials"
+            onClick={() => setPage((p) => (p + 1) % totalPages)}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#BFDBFE] bg-white text-[#2563EB] shadow-sm transition-colors hover:bg-[#EFF6FF]"
+          >
+            <ChevronRight className="h-5 w-5" aria-hidden />
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-6 md:grid-cols-3 md:gap-5">
+        {visible.map((t, i) => (
+          <article
+            key={`${start}-${i}`}
+            className="flex flex-col rounded-2xl border border-[#BFDBFE] bg-white p-6 shadow-sm"
+          >
+            <div className="mb-4 flex gap-0.5">
+              {Array.from({ length: 5 }).map((_, si) => (
+                <Star
+                  key={si}
+                  className="h-4 w-4 fill-[#60A5FA] text-[#60A5FA]"
+                  aria-hidden
+                />
+              ))}
+            </div>
+            <p className="flex-1 text-sm italic leading-relaxed text-slate-600 md:text-[15px]">
+              {t.quote}
+            </p>
+            <div className="mt-6 flex items-center gap-3 border-t border-[#E2E8F0] pt-5">
+              <img
+                src={t.avatar}
+                alt=""
+                className="h-11 w-11 shrink-0 rounded-full object-cover"
+              />
+              <div>
+                <p className="text-sm font-bold">{t.name}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Client
+                </p>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const SectionHeading = ({
   children,
@@ -212,7 +361,7 @@ const LocalSEOSection = ({
               </h2>
               <div className="space-y-4 text-slate-600 leading-relaxed">
                 <p>
-                  Shalean Cleaning Services proudly serves homeowners, landlords,
+                  Bokkies proudly serves homeowners, landlords,
                   and Airbnb hosts across all major Cape Town suburbs. From the
                   vibrant streets of{" "}
                   <strong className="text-slate-900">Sea Point</strong> and{" "}
@@ -269,103 +418,105 @@ const BlogPreviewSection = ({
 }) => {
   const posts = [
     {
-      title: "Complete Guide to Deep Cleaning Your Cape Town Home",
-      category: "Deep Cleaning",
-      readTime: "5 min read",
-      img: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
+      category: "Tips & tricks",
+      title:
+        "5 habits that keep your home cleaner between professional visits",
       excerpt:
-        "Everything you need to know about scheduling a professional deep clean, what's covered, and how to prepare your home.",
-    },
-    {
-      title: "How Much Does Cleaning Cost in Cape Town?",
-      category: "Pricing Guide",
+        "Small daily rituals that compound into a noticeably tidier space — no extra effort required.",
+      author: "Mara Osei",
       readTime: "4 min read",
-      img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
-      excerpt:
-        "A transparent breakdown of cleaning service costs across Cape Town suburbs, including seasonal pricing factors.",
+      img: "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=900&q=80",
     },
     {
-      title: "Airbnb Cleaning Checklist for Hosts",
-      category: "Airbnb",
-      readTime: "6 min read",
-      img: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=800&q=80",
+      category: "Sustainability",
+      title:
+        "Why we switched to 100% biodegradable supplies — and what we learned",
       excerpt:
-        "The complete turnaround checklist top-rated Cape Town Airbnb hosts use to maintain 5-star cleanliness ratings.",
+        "Our journey to a fully eco-conscious product line and the impact on our cleaning results.",
+      author: "James Whitfield",
+      readTime: "6 min read",
+      img: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=900&q=80",
     },
-  ];
+  ] as const;
 
   return (
-    <section className="bg-slate-100 pt-1 pb-8">
-      <div className="max-w-7xl mx-auto px-6 w-full">
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 md:p-12">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-10">
-            <div>
-              <div className="flex items-center gap-2 text-slate-500 bg-slate-100 w-fit px-3 py-1.5 rounded-full text-sm font-medium mb-4">
-                <FileText className="w-4 h-4" />
-                <span>Cleaning Guides & Tips</span>
-              </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
-                Practical Guides from Our Cleaning Experts
-              </h2>
-              <p className="text-slate-500 text-base md:text-lg max-w-2xl">
-                Short, actionable guides to help you get more from every clean — whether you book with us or DIY.
-              </p>
+    <section
+      className="border-t border-[#BFDBFE]/60 py-14 md:py-20"
+      style={{ backgroundColor: HOME.background }}
+    >
+      <div className="mx-auto w-full max-w-7xl px-6">
+        <div className="mb-10 flex flex-col gap-6 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-4 flex w-fit items-center gap-2 rounded-full border border-[#93C5FD] bg-white/90 px-3 py-1.5 text-sm font-medium text-[#2563EB] shadow-sm">
+              <FileText className="h-4 w-4" />
+              <span>Cleaning guides &amp; tips</span>
             </div>
-            <Button
-              onClick={() => onNavigate("blog")}
-              variant="outline"
-              className="whitespace-nowrap self-start sm:self-auto"
+            <h2
+              className="mb-2 text-3xl font-bold md:text-4xl"
+              style={{ color: HOME.textDark }}
             >
-              View All Articles <ArrowRight className="w-4 h-4" />
-            </Button>
+              Practical guides from our cleaning experts
+            </h2>
+            <p className="max-w-2xl text-base text-slate-600 md:text-lg">
+              Short, actionable guides — whether you book with us or handle
+              touch-ups yourself.
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={() => onNavigate("blog")}
+            className="inline-flex items-center justify-center gap-2 self-start rounded-full border-2 border-[#2563EB] bg-white px-6 py-3 text-sm font-semibold text-[#2563EB] transition hover:bg-[#DBEAFE] sm:self-auto"
+          >
+            View all articles <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {posts.map((post, idx) => (
-              <motion.div
-                key={idx}
-                whileHover={{
-                  y: -4,
-                }}
-              >
-                <div className="bg-white border border-slate-200 rounded-xl shadow-sm h-full flex flex-col cursor-pointer overflow-hidden">
-                  <div className="px-6 pt-6 pb-2">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-blue-600">
-                          {post.category}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          {post.readTime}
-                        </span>
-                      </div>
-                    </div>
-                    <h3 className="font-bold text-slate-900 mb-3 leading-snug">
-                      {post.title}
-                    </h3>
-                    <p className="text-slate-500 text-sm leading-relaxed">
-                      {post.excerpt}
-                    </p>
-                  </div>
-                  <div className="mt-4">
-                    <img
-                      src={post.img}
-                      alt={post.title}
-                      className="w-full h-32 object-cover"
-                    />
-                  </div>
-                  <div className="px-6 pt-4 pb-6 mt-auto">
-                    <div className="flex items-center gap-1 text-blue-600 text-sm font-semibold">
-                      Read Guide <ArrowRight className="w-4 h-4" />
-                    </div>
-                  </div>
+        <div className="grid gap-5 md:grid-cols-2 md:gap-6">
+          {posts.map((post) => (
+            <motion.article
+              key={post.title}
+              whileHover={{ y: -3 }}
+              className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#BFDBFE] bg-white shadow-md transition hover:border-[#93C5FD]"
+              onClick={() => onNavigate("blog")}
+            >
+              <div className="relative aspect-[5/3] w-full shrink-0 sm:aspect-auto sm:min-h-[200px] sm:w-[30%] sm:min-w-[132px]">
+                <Image
+                  src={post.img}
+                  alt={post.title}
+                  fill
+                  className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                  sizes="(max-width: 768px) 100vw, 42vw"
+                />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col justify-center p-5 md:p-6">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#14B8A6]">
+                  {post.category}
+                </p>
+                <h3
+                  className="mt-2 text-base font-bold leading-snug md:text-lg"
+                  style={{ color: HOME.textDark }}
+                >
+                  {post.title}
+                </h3>
+                <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                  {post.excerpt}
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <span
+                    className="h-7 w-7 shrink-0 rounded-full bg-slate-200 ring-1 ring-slate-300/80"
+                    aria-hidden
+                  />
+                  <span className="font-medium text-slate-700">
+                    {post.author}
+                  </span>
+                  <span className="text-slate-400" aria-hidden>
+                    •
+                  </span>
+                  <span>{post.readTime}</span>
                 </div>
-              </motion.div>
-            ))}
-          </div>
+              </div>
+            </motion.article>
+          ))}
         </div>
       </div>
     </section>
@@ -373,7 +524,82 @@ const BlogPreviewSection = ({
 };
 
 // ─── HOME PAGE ────────────────────────────────────────────────────────────────
-const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
+type HeroServiceDef = {
+  value: string;
+  title: string;
+  description: string;
+  /** Lucide icons accept `strokeWidth` as string | number */
+  Icon: React.ComponentType<{ className?: string; strokeWidth?: number | string }>;
+};
+
+const HERO_SERVICE_OPTIONS: HeroServiceDef[] = [
+  {
+    value: "standard",
+    title: "Standard Clean",
+    description: "Regular recurring clean for every room",
+    Icon: Sparkles,
+  },
+  {
+    value: "airbnb",
+    title: "Airbnb Clean",
+    description: "Quick turnaround clean for short-term rentals",
+    Icon: Home,
+  },
+  {
+    value: "deep",
+    title: "Deep Clean",
+    description: "Thorough top-to-bottom treatment",
+    Icon: Droplets,
+  },
+  {
+    value: "move",
+    title: "Move In / Move Out",
+    description: "Empty-home cleaning for moves and handovers",
+    Icon: Truck,
+  },
+];
+
+/** Unsplash — professional home cleaning (hero left column) */
+const HERO_SPLASH_IMAGE =
+  "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1400&q=80";
+
+/** About / trust collage — cleaner + bathroom (Unsplash) */
+const TRUST_COLLAGE_CLEANER_IMAGE =
+  "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80";
+const TRUST_COLLAGE_BATHROOM_IMAGE =
+  "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=800&q=80";
+
+const HERO_WHATSAPP_PREFILL = encodeURIComponent(
+  "Hi! I'd like to know more about Bokkies."
+);
+
+function heroWhatsAppHref(): string {
+  const raw = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+  const digits = typeof raw === "string" ? raw.replace(/\D/g, "") : "";
+  if (digits.length >= 8) {
+    return `https://wa.me/${digits}?text=${HERO_WHATSAPP_PREFILL}`;
+  }
+  return `https://wa.me/?text=${HERO_WHATSAPP_PREFILL}`;
+}
+
+const HomePage = ({
+  onNavigate,
+}: {
+  onNavigate: (page: PageType, bookingPrefill?: BookingRoutePrefill) => void;
+}) => {
+  const [heroAddress, setHeroAddress] = useState("");
+  const [heroService, setHeroService] = useState<string>(HERO_SERVICE_OPTIONS[0].value);
+  const [heroServiceMenuOpen, setHeroServiceMenuOpen] = useState(false);
+  const heroServiceDropdownRef = useRef<HTMLDivElement>(null);
+  const [heroScheduleModalOpen, setHeroScheduleModalOpen] = useState(false);
+  /** Last confirmed choice; drives pill label */
+  const [heroScheduleTiming, setHeroScheduleTiming] = useState<"now" | "later">(
+    "later"
+  );
+  /** Working selection while modal is open */
+  const [heroScheduleDraft, setHeroScheduleDraft] = useState<"now" | "later">(
+    "later"
+  );
   const [reviewSummary, setReviewSummary] = useState<{
     averageRating: number | null;
     totalReviews: number | null;
@@ -411,479 +637,838 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!heroServiceMenuOpen) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const el = heroServiceDropdownRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setHeroServiceMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHeroServiceMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [heroServiceMenuOpen]);
+
+  useEffect(() => {
+    if (!heroScheduleModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHeroScheduleModalOpen(false);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [heroScheduleModalOpen]);
+
+  const openHeroScheduleModal = () => {
+    setHeroScheduleDraft(heroScheduleTiming);
+    setHeroScheduleModalOpen(true);
+  };
+
+  const confirmHeroSchedule = () => {
+    setHeroScheduleTiming(heroScheduleDraft);
+    try {
+      sessionStorage.setItem("shaleanHeroScheduleTiming", heroScheduleDraft);
+    } catch {
+      /* ignore */
+    }
+    setHeroScheduleModalOpen(false);
+    onNavigate("booking", { service: heroService, address: heroAddress });
+  };
+
+  const selectedHeroService =
+    HERO_SERVICE_OPTIONS.find((o) => o.value === heroService) ??
+    HERO_SERVICE_OPTIONS[0];
+  const SelectedHeroIcon = selectedHeroService.Icon;
+
   const displayRating =
     reviewSummary.averageRating !== null
-      ? reviewSummary.averageRating.toFixed(1)
-      : "4.5";
-  const displayTotalReviews =
-    reviewSummary.totalReviews !== null
-      ? `${reviewSummary.totalReviews}+`
-      : "4284+";
-
+      ? reviewSummary.averageRating.toFixed(2)
+      : "4.97";
   return (
-    <div className="pb-24">
-      {/* Hero Section — full image background with left overlay, same width as navbar */}
-      <section className="mt-[-12px] sm:mt-0">
-        <div className="max-w-7xl mx-auto px-6 w-full">
+    <div>
+      {/* Hero — equal-height columns (lg+); condensed UI with sr-only copy for SEO */}
+      <section
+        className="py-6 sm:py-8 lg:py-10"
+        style={{ backgroundColor: HOME.background }}
+        aria-labelledby="hero-main-heading"
+      >
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <p className="sr-only">
+            Shalean professional home cleaning in Cape Town and surrounds, South
+            Africa. Available in your area. Add your service details, select a
+            time, and leave the rest to us. Schedule later or book a cleaning.
+            Services include standard clean, Airbnb clean, deep clean, and move
+            in or move out cleaning. No commitment, cancel anytime, free
+            rescheduling. Over ten thousand homes cleaned with an average rating
+            of {displayRating}. Contact us on WhatsApp for cleaning services.
+          </p>
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="relative rounded-3xl shadow-xl overflow-hidden border border-slate-200 min-h-[35vh] sm:min-h-[420px] lg:min-h-[500px]"
+            className="grid grid-cols-1 gap-6 lg:min-h-[min(540px,calc(100vh-10rem))] lg:grid-cols-2 lg:items-stretch lg:gap-10 xl:gap-12"
           >
-            {/* Full-bleed background image — visible on all breakpoints */}
-            <img
-              src="https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1600&q=80"
-              alt="Fresh, clean living room interior"
-              className="absolute inset-0 w-full h-full object-cover object-left-top"
-            />
-            {/* Dark gradient overlay — left to right for text contrast */}
-            <div
-              className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/50 to-transparent"
-              aria-hidden
-            />
-
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-stretch min-h-[35vh] sm:min-h-[420px] lg:min-h-[500px]">
-              {/* Left — white text over dark overlay */}
-              <div className="flex flex-col justify-start lg:justify-center px-4 pt-6 pb-6 sm:p-8 md:p-10 lg:p-12 lg:max-w-[55%] order-2 lg:order-1">
-                <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-3 sm:mb-6">
-                  Custom home cleaning services
-                </h1>
-                <p className="text-sm sm:text-base md:text-lg text-white/95 leading-relaxed max-w-xl mb-4 sm:mb-8">
-                  Enjoy a spotless space with our trusted cleaning professionals. Eco-friendly, flexible, and always on time.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2 md:gap-4">
-                  <button
-                    onClick={() => onNavigate("booking")}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 font-semibold text-base md:text-lg px-6 md:px-8 py-3 md:py-4 text-white shadow-md transition-colors"
-                  >
-                    Book Now <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
-                  </button>
-                  <button
-                    onClick={() => onNavigate("services")}
-                    className="inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white border-2 border-white/80 font-semibold text-base md:text-lg px-6 md:px-8 py-3 md:py-4 transition-colors"
-                  >
-                    WhatsApp Us
-                  </button>
-                </div>
-              </div>
-
-              {/* Right — image shows through; trust overlay bottom-right */}
-              <div className="relative flex-1 order-1 lg:order-2 min-h-[40px] sm:min-h-[260px] lg:min-h-0" />
-            </div>
-
-            {/* Trust badge — bottom right over image on tablet/desktop, hidden on very small screens */}
-            <div className="hidden sm:block absolute bottom-4 right-4 left-4 lg:left-auto lg:right-20 lg:w-[280px] z-20 bg-slate-900/70 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex -space-x-2">
-                  {[
-                    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop",
-                    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop",
-                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=64&h=64&fit=crop",
-                  ].map((src, i) => (
-                    <img
-                      key={i}
-                      src={src}
-                      alt=""
-                      className="w-8 h-8 rounded-full border-2 border-white/80 object-cover"
-                    />
-                  ))}
-                </div>
-                <span className="flex items-center gap-1 text-white font-semibold text-sm">
-                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  {displayRating} ({displayTotalReviews} reviews)
-                </span>
-              </div>
-              <p className="text-white/90 text-xs leading-snug">
-                Over 500 people have trusted us and left positive reviews. Join them!
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Mobile trust badge — stacked under hero for better responsiveness */}
-          <div className="sm:hidden mt-3">
-            <div className="bg-slate-900 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 shadow-md">
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-2">
-                  {[
-                    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop",
-                    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop",
-                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=64&h=64&fit=crop",
-                  ].map((src, i) => (
-                    <img
-                      key={i}
-                      src={src}
-                      alt=""
-                      className="w-7 h-7 rounded-full border-2 border-white/80 object-cover"
-                    />
-                  ))}
-                </div>
-                <div className="flex flex-col">
-                  <span className="flex items-center gap-1 text-white text-xs font-semibold">
-                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    {displayRating} ({displayTotalReviews} reviews)
-                  </span>
-                  <span className="text-[11px] text-white/80">
-                    Over 500 people trust our cleaners.
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* About Us Section — gap matches visible space between navbar and hero */}
-      <section className="mt-12">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <AboutSection onNavigate={onNavigate} />
-        </div>
-      </section>
-
-      {/* Stats cards — below About Us */}
-      <section className="mt-8 lg:mt-8">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-left">
-              <p className="text-3xl md:text-4xl font-bold text-slate-900">500+</p>
-              <h3 className="text-lg font-semibold text-slate-900 mt-4">Happy Clients</h3>
-              <p className="text-base text-slate-500 leading-relaxed mt-2">
-                Trusted by hundreds of homeowners and offices, Shalean delivers spotless results that bring real satisfaction every time.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-left">
-              <p className="text-3xl md:text-4xl font-bold text-slate-900">1,200+</p>
-              <h3 className="text-lg font-semibold text-slate-900 mt-4">Completed Cleanings</h3>
-              <p className="text-base text-slate-500 leading-relaxed mt-2">
-                From cozy apartments to large offices, we&apos;ve successfully completed over a thousand cleaning sessions with consistent quality.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-left">
-              <p className="text-3xl md:text-4xl font-bold text-slate-900">100%</p>
-              <h3 className="text-lg font-semibold text-slate-900 mt-4">Service Commitment</h3>
-              <p className="text-base text-slate-500 leading-relaxed mt-2">
-                We take pride in our reliability, attention to detail, and 100% commitment to creating healthier, fresher spaces.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Service highlight card — same spacing as above */}
-      <section className="mt-8 lg:mt-8">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 md:p-8">
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-slate-600 bg-slate-100 border border-slate-200">
-              <Sparkles className="w-4 h-4 text-slate-500" />
-              Service
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mt-6 mb-5 leading-tight">
-              Complete Home and Office Cleaning You Can Trust
-            </h2>
-            <p className="text-base md:text-lg text-slate-600 leading-relaxed max-w-3xl">
-              At Shalean, we provide a full range of cleaning solutions for every space — whether it&apos;s your cozy home or a busy office. Our goal is to deliver spotless results with care, reliability, and consistency.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Service cards with full-bleed images — below Service highlight card */}
-      <section className="mt-8 lg:mt-8">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                title: "Home Cleaning",
-                description:
-                  "Keep your living space fresh and organized with regular or one-time cleaning tailored to your schedule.",
-                image:
-                  "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80",
-              },
-              {
-                title: "Office Cleaning",
-                description:
-                  "Maintain a clean, productive workspace that boosts focus and leaves a lasting impression on clients.",
-                image:
-                  "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
-              },
-              {
-                title: "Deep Cleaning",
-                description:
-                  "Thorough intensive cleaning for every corner — from upholstery to hard-to-reach spaces.",
-                image:
-                  "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
-              },
-            ].map((card) => (
-              <motion.div
-                key={card.title}
-                className="group relative aspect-[4/5] min-h-[320px] rounded-2xl overflow-hidden cursor-pointer"
-                whileHover={{ y: -4 }}
-              >
-                <img
-                  src={card.image}
-                  alt={card.title}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
+            {/* Left — main block + bottom CTAs (justify-between matches image height) */}
+            <div className="flex min-h-0 min-w-0 flex-col justify-between gap-6 lg:h-full">
+              <div className="min-w-0 space-y-4 sm:space-y-5">
                 <div
-                  className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+                  style={{ color: HOME.textDark }}
+                >
+                  <MapPin
+                    className="h-4 w-4 shrink-0 text-[#2563EB]"
+                    aria-hidden
+                  />
+                  <span className="font-medium">Cape Town & surrounds, ZA</span>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("locations")}
+                    className="text-[#2563EB] underline decoration-[#93C5FD] underline-offset-4 transition-colors hover:text-[#1D4ED8]"
+                  >
+                    Change area
+                  </button>
+                </div>
+
+                <h1
+                  id="hero-main-heading"
+                  className="font-sans text-[1.75rem] font-bold leading-[1.12] tracking-tight sm:text-4xl sm:leading-[1.08] lg:text-[2.25rem] xl:text-[2.5rem]"
+                  style={{ color: HOME.textDark }}
+                >
+                  Book a cleaning for now or later
+                </h1>
+
+                <button
+                  type="button"
+                  onClick={openHeroScheduleModal}
+                  aria-label="Choose cleaning time: now or schedule later"
+                  aria-haspopup="dialog"
+                  aria-expanded={heroScheduleModalOpen}
+                  className="inline-flex w-full max-w-md items-center gap-3 rounded-full border border-[#BFDBFE] bg-white px-3 py-2.5 text-left text-[15px] font-medium shadow-sm transition-colors hover:bg-[#EFF6FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/25 sm:w-auto"
+                  style={{ color: HOME.textDark }}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-white">
+                    <Clock className="h-4 w-4" strokeWidth={2} aria-hidden />
+                  </span>
+                  {heroScheduleTiming === "now" ? "Pickup now" : "Schedule later"}
+                  <ChevronDown
+                    className="ml-auto h-4 w-4 shrink-0 sm:ml-1"
+                    style={{ color: HOME.textDark }}
+                    aria-hidden
+                  />
+                </button>
+
+              <div className="relative pl-7">
+                <div
+                  className="absolute bottom-9 left-[7px] top-9 w-px bg-[#BFDBFE]"
                   aria-hidden
                 />
-                <div className="absolute inset-0 flex flex-col justify-end p-6 text-left">
-                  <h3 className="text-lg md:text-2xl font-bold text-white mb-2">
-                    {card.title}
-                  </h3>
-                  <p className="text-sm text-white/95 leading-relaxed mb-4 max-w-md">
-                    {card.description}
-                  </p>
-                  <Button
-                    onClick={() => onNavigate("booking")}
-                    className="w-fit bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-2.5 text-sm font-medium"
+                <div
+                  className="absolute left-[3px] top-[22px] h-2.5 w-2.5 rounded-full border-2 border-[#60A5FA] bg-white"
+                  aria-hidden
+                />
+                <div
+                  className="absolute bottom-[22px] left-[3px] h-2.5 w-2.5 rotate-45 border-2 border-[#60A5FA] bg-white"
+                  aria-hidden
+                />
+
+                <div className="space-y-3">
+                  <div
+                    ref={heroServiceDropdownRef}
+                    className="relative z-20 overflow-visible"
                   >
-                    Book Now
-                  </Button>
+                    <p className="mb-1.5 text-xs font-medium text-slate-500">
+                      Service type
+                    </p>
+                    <button
+                      type="button"
+                      id="hero-service-trigger"
+                      onClick={() =>
+                        setHeroServiceMenuOpen((open) => !open)
+                      }
+                      aria-expanded={heroServiceMenuOpen}
+                      aria-haspopup="listbox"
+                      aria-controls="hero-service-listbox"
+                      className="flex w-full items-center gap-3 rounded-2xl border border-[#BFDBFE] bg-white px-4 py-3.5 text-left shadow-sm transition-shadow hover:border-[#93C5FD] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/20"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2563EB] text-white">
+                        <SelectedHeroIcon
+                          className="h-5 w-5"
+                          strokeWidth={2}
+                          aria-hidden
+                        />
+                      </div>
+                      <span
+                        className="min-w-0 flex-1 text-base font-semibold"
+                        style={{ color: HOME.textDark }}
+                      >
+                        {selectedHeroService.title}
+                      </span>
+                      {heroServiceMenuOpen ? (
+                        <ChevronUp
+                          className="h-5 w-5 shrink-0 text-slate-500"
+                          aria-hidden
+                        />
+                      ) : (
+                        <ChevronDown
+                          className="h-5 w-5 shrink-0 text-slate-500"
+                          aria-hidden
+                        />
+                      )}
+                    </button>
+
+                    {heroServiceMenuOpen && (
+                      <div
+                        id="hero-service-listbox"
+                        role="listbox"
+                        aria-labelledby="hero-service-list-label"
+                        className="absolute left-0 right-0 top-[calc(100%+0.5rem)] rounded-2xl border border-[#BFDBFE] bg-white p-2 shadow-[0_12px_40px_rgba(37,99,235,0.12)]"
+                      >
+                        <p
+                          id="hero-service-list-label"
+                          className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400"
+                        >
+                          Select a service
+                        </p>
+                        <div className="flex max-h-[min(70vh,420px)] flex-col gap-1 overflow-y-auto rounded-xl bg-[#EFF6FF]/80 p-1">
+                          {HERO_SERVICE_OPTIONS.map((opt) => {
+                            const selected = heroService === opt.value;
+                            const Icon = opt.Icon;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                onClick={() => {
+                                  setHeroService(opt.value);
+                                  setHeroServiceMenuOpen(false);
+                                }}
+                                className={cn(
+                                  "flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left transition-colors",
+                                  selected
+                                    ? "bg-[#2563EB] text-white shadow-sm"
+                                    : "bg-white hover:bg-[#EFF6FF]"
+                                )}
+                              >
+                                <div
+                                  className={cn(
+                                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                                    selected
+                                      ? "bg-[#1D4ED8]"
+                                      : "bg-[#EFF6FF]"
+                                  )}
+                                >
+                                  <Icon
+                                    className={cn(
+                                      "h-5 w-5",
+                                      selected
+                                        ? "text-white"
+                                        : "text-[#0F172A]"
+                                    )}
+                                    strokeWidth={2}
+                                    aria-hidden
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p
+                                    className={cn(
+                                      "text-[15px] font-bold leading-tight",
+                                      selected
+                                        ? "text-white"
+                                        : "text-[#0F172A]"
+                                    )}
+                                  >
+                                    {opt.title}
+                                  </p>
+                                  <p
+                                    className={cn(
+                                      "mt-0.5 text-xs leading-snug",
+                                      selected
+                                        ? "text-white/75"
+                                        : "text-slate-500"
+                                    )}
+                                  >
+                                    {opt.description}
+                                  </p>
+                                </div>
+                                {selected && (
+                                  <span
+                                    className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#14B8A6]"
+                                    aria-hidden
+                                  />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="hero-search"
+                      className="mb-1.5 block text-xs font-medium text-slate-500"
+                    >
+                      Service address
+                    </label>
+                    <div className="flex items-center gap-2 rounded-2xl border border-[#BFDBFE] bg-white px-4 py-3 shadow-sm focus-within:border-[#60A5FA] focus-within:ring-2 focus-within:ring-[#2563EB]/15">
+                      <MapPin className="h-5 w-5 shrink-0 text-[#60A5FA]" />
+                      <input
+                        id="hero-search"
+                        type="text"
+                        value={heroAddress}
+                        onChange={(e) => setHeroAddress(e.target.value)}
+                        placeholder="Search service address"
+                        className="min-w-0 flex-1 bg-transparent text-base placeholder:text-slate-400 outline-none"
+                        style={{ color: HOME.textDark }}
+                        autoComplete="street-address"
+                      />
+                      {heroAddress ? (
+                        <button
+                          type="button"
+                          onClick={() => setHeroAddress("")}
+                          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-[#EFF6FF] hover:text-[#2563EB]"
+                          aria-label="Clear address"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-[#EFF6FF] hover:text-[#2563EB]"
+                          aria-label="Search address"
+                        >
+                          <Search className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </motion.div>
+              </div>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNavigate("booking", {
+                      service: heroService,
+                      address: heroAddress,
+                    })
+                  }
+                  className="w-full rounded-xl bg-[#2563EB] px-8 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1D4ED8] sm:flex-1"
+                >
+                  Book a Cleaning
+                </button>
+                <a
+                  href={heroWhatsAppHref()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-xl border-2 border-[#14B8A6] bg-[#14B8A6] px-6 py-3 text-center text-base font-semibold !text-white no-underline shadow-sm transition-colors visited:!text-white hover:border-[#0D9488] hover:bg-[#0D9488] hover:!text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#14B8A6] sm:flex-1"
+                >
+                  <MessageSquare
+                    className="h-5 w-5 shrink-0 !text-white"
+                    strokeWidth={2}
+                    aria-hidden
+                  />
+                  <span className="shrink-0 whitespace-nowrap !text-white">
+                    WhatsApp Us
+                  </span>
+                </a>
+              </div>
+            </div>
+
+            {/* Right — image fills column height (matches left on lg+) */}
+            <div className="relative mx-auto w-full max-w-lg min-h-[220px] lg:mx-0 lg:max-w-none lg:min-h-0 lg:h-full">
+              <div className="relative h-full min-h-[220px] w-full overflow-hidden rounded-[24px] bg-[#DBEAFE] sm:min-h-[260px] lg:absolute lg:inset-0 lg:min-h-0">
+                <Image
+                  src={HERO_SPLASH_IMAGE}
+                  alt="Professional home cleaning supplies and care"
+                  fill
+                  className="object-cover object-center"
+                  sizes="(max-width: 1023px) 100vw, 45vw"
+                  priority
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
+
+                <div className="absolute inset-x-0 bottom-0 z-10 p-3 sm:p-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border border-white/20 bg-[#2563EB]/85 px-4 py-3 shadow-lg backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:py-3.5">
+                    <div className="min-w-0 sm:pr-3">
+                      <p className="text-base font-semibold text-white sm:text-[1.05rem]">
+                        Ready for a spotless home?
+                      </p>
+                      <p className="sr-only">
+                        Ten thousand plus homes cleaned. Average rating{" "}
+                        {displayRating} out of five.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onNavigate("booking", {
+                          service: heroService,
+                          address: heroAddress,
+                        })
+                      }
+                      className="shrink-0 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#2563EB] shadow-sm transition-colors hover:bg-[#EFF6FF]"
+                    >
+                      Schedule ahead
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Stats banner — full-width strip below hero */}
+      <section
+        className="border-y border-[#BFDBFE]/60 bg-[#2563EB] text-white"
+        aria-label="Trust statistics"
+      >
+        <div className="mx-auto w-full max-w-7xl px-6 py-6 sm:py-7 md:py-8">
+          <div className="grid grid-cols-2 gap-5 md:grid-cols-4 md:gap-6 lg:gap-8">
+            {[
+              { value: "10K+", label: "Cleanings" },
+              { value: displayRating, label: "Average rating" },
+              { value: "150+", label: "Pro cleaners" },
+              { value: "100%", label: "Satisfaction guarantee" },
+            ].map((stat, i) => (
+              <div
+                key={i}
+                className="flex flex-col items-center justify-center text-center"
+              >
+                <p className="text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-[2.5rem]">
+                  {stat.value}
+                </p>
+                <p className="mt-1 text-sm text-[#BFDBFE] sm:text-base">
+                  {stat.label}
+                </p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Simple Steps to a Cleaner Home — same spacing as above */}
-      <section className="mt-8 lg:mt-8">
+      {/* What We Offer — replaces former About Us block */}
+      <section className="py-12 md:py-16" style={{ backgroundColor: HOME.background }}>
         <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="bg-[#316DF8] rounded-2xl px-6 py-8 md:px-12 md:py-10 lg:px-16 lg:py-12">
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-white/95 bg-white/20 border border-white/30">
-              <Sparkles className="w-4 h-4" />
-              How It Work
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-5 leading-tight">
-              Simple Steps to a Cleaner Home
-            </h2>
-            <p className="text-base md:text-lg text-white/90 leading-relaxed max-w-2xl mb-8 md:mb-10">
-              Our cleaning process is simple, quick, and reliable — from booking to enjoying your spotless home.
-            </p>
-            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
-              {[
-                {
-                  step: "01",
-                  title: "Book Your Service",
-                  desc: "Easily select your preferred date, time, and cleaning plan through our user-friendly online platform.",
-                },
-                {
-                  step: "02",
-                  title: "Confirmation & Preparation",
-                  desc: "We confirm your booking and prepare all the tools and supplies needed.",
-                },
-                {
-                  step: "03",
-                  title: "We Do the Cleaning",
-                  desc: "Our expert team arrives on time, making your space shine and creating a warm atmosphere.",
-                },
-                {
-                  step: "04",
-                  title: "Relax & Enjoy",
-                  desc: "Sit back, unwind, and experience the comfort of a freshly cleaned home.",
-                },
-              ].map((item) => (
-                <div key={item.step} className="flex gap-4">
-                  <span className="text-4xl md:text-5xl lg:text-6xl font-black text-white/30 flex-shrink-0 leading-none">
-                    {item.step}
-                  </span>
-                  <div>
-                    <h3 className="text-xl md:text-2xl font-bold text-white mb-2">
-                      {item.title}
-                    </h3>
-                    <p className="text-sm text-white/90 leading-relaxed">
-                      {item.desc}
+          <AboutSection onNavigate={onNavigate} />
+        </div>
+      </section>
+
+      {/* Professional cleaning / trust — white section (matches hero & about) */}
+      <section
+        id="how-it-works"
+        className="py-14 md:py-20"
+        style={{ backgroundColor: HOME.background }}
+        aria-labelledby="professional-cleaning-heading"
+      >
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+            {/* Left — photo collage */}
+            <div className="relative mx-auto w-full max-w-lg lg:mx-0 lg:max-w-none">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] sm:grid-rows-[auto_1fr] sm:gap-4">
+                <div className="relative aspect-[3/4] overflow-hidden rounded-[28px] shadow-[0_12px_40px_rgba(0,0,0,0.08)] sm:row-span-2 sm:aspect-auto sm:min-h-[min(100%,420px)] sm:h-full">
+                  <Image
+                    src={TRUST_COLLAGE_CLEANER_IMAGE}
+                    alt="Professional cleaner with supplies"
+                    fill
+                    className="object-cover object-center"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                  />
+                </div>
+                <div className="relative aspect-[5/3] overflow-hidden rounded-[24px] shadow-[0_8px_28px_rgba(0,0,0,0.07)] sm:aspect-[4/3]">
+                  <Image
+                    src={TRUST_COLLAGE_BATHROOM_IMAGE}
+                    alt="Clean modern bathroom"
+                    fill
+                    className="object-cover object-center"
+                    sizes="(max-width: 1024px) 100vw, 40vw"
+                  />
+                </div>
+                <div className="mb-8 sm:col-start-2 sm:row-start-2 sm:mb-10">
+                  <div className="relative rounded-[24px] bg-[#14B8A6] px-6 pb-20 pt-7 text-center text-white shadow-[0_8px_24px_rgba(20,184,166,0.35)]">
+                    <p className="text-4xl font-bold tracking-tight sm:text-[2.75rem]">
+                      20+
                     </p>
+                    <p className="mt-1 text-sm font-semibold text-white/95">
+                      Certified Cleaners
+                    </p>
+                    <div className="absolute bottom-0 right-3 z-10 max-w-[11rem] translate-y-1/2 rounded-2xl border border-[#BFDBFE] bg-white px-4 py-3 text-left shadow-lg sm:right-5">
+                      <Award
+                        className="mb-1 h-7 w-7 text-[#2563EB]"
+                        strokeWidth={1.5}
+                        aria-hidden
+                      />
+                      <p
+                        className="text-lg font-bold leading-none"
+                        style={{ color: HOME.textDark }}
+                      >
+                        2024
+                      </p>
+                      <p className="mt-1 text-xs font-medium leading-snug text-slate-600">
+                        Super Service Award
+                      </p>
+                    </div>
                   </div>
                 </div>
-              ))}
+              </div>
+            </div>
+
+            {/* Right — copy & CTAs */}
+            <div className="flex flex-col justify-center">
+              <p className="mb-2 text-sm font-semibold text-[#2563EB]">
+                About us
+              </p>
+              <h2
+                id="professional-cleaning-heading"
+                className="text-3xl font-bold tracking-tight md:text-4xl md:leading-[1.15]"
+                style={{ color: HOME.textDark }}
+              >
+                Professional Cleaning Services, You Can Count On
+              </h2>
+              <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-600 md:text-[17px]">
+                Our team goes above and beyond to ensure you&apos;re happy after
+                every clean, with open communication, flexible scheduling, and a
+                satisfaction guarantee.
+              </p>
+              <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[22px] border border-[#BFDBFE] bg-white px-5 py-5 shadow-sm">
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EFF6FF]">
+                    <ShieldCheck
+                      className="h-6 w-6 text-[#2563EB]"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                  </div>
+                  <h3
+                    className="text-base font-bold"
+                    style={{ color: HOME.textDark }}
+                  >
+                    Trusted Company
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    We pride ourselves on building trust through reliability.
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-[#BFDBFE] bg-white px-5 py-5 shadow-sm">
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EFF6FF]">
+                    <Briefcase
+                      className="h-6 w-6 text-[#2563EB]"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                  </div>
+                  <h3
+                    className="text-base font-bold"
+                    style={{ color: HOME.textDark }}
+                  >
+                    Professional Service
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Excellent performance, flat rates, no surprises.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNavigate("booking", {
+                      service: heroService,
+                      address: heroAddress,
+                    })
+                  }
+                  className="rounded-full bg-[#2563EB] px-9 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
+                >
+                  Book Now
+                </button>
+                <p className="text-sm font-semibold text-slate-700">
+                  4K+ Cleanings Performed
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Testimonial — white card block */}
-      <section className="mt-8 lg:mt-8 bg-slate-100 pb-6">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 md:p-12">
-            <div className="flex items-center gap-2 text-slate-500 bg-slate-100 w-fit px-3 py-1.5 rounded-full text-sm font-medium mb-6">
-              <FileText className="w-4 h-4" />
-              <span>Testimonial</span>
+      {/* Client satisfaction survey */}
+      <section
+        id="reviews"
+        className="border-y border-[#BFDBFE]/60 bg-[#2563EB] py-16 text-white md:py-24"
+      >
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-14">
+            <div className="relative">
+              <img
+                src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80"
+                alt=""
+                className="aspect-[4/3] w-full rounded-[28px] object-cover shadow-xl"
+              />
+              <div className="absolute bottom-4 right-4 rounded-2xl border border-[#BFDBFE] bg-white px-5 py-4 shadow-lg sm:bottom-6 sm:right-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#14B8A6]">
+                    <CheckCircle2
+                      className="h-7 w-7 text-white"
+                      strokeWidth={2.5}
+                      aria-hidden
+                    />
+                  </div>
+                  <div>
+                    <p
+                      className="text-2xl font-bold"
+                      style={{ color: HOME.textDark }}
+                    >
+                      96%
+                    </p>
+                    <p className="text-sm text-slate-500">Satisfaction Rate</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-5">
-              Over 500 Positive Reviews
-            </h2>
-            <p className="text-slate-500 text-base md:text-lg mb-6 max-w-2xl">
-              Real stories from happy homeowners who trust Shalean to keep their
-              spaces fresh, spotless, and worry-free.
-            </p>
-            <div className="flex flex-wrap items-center gap-3 mb-10">
-              <div className="flex -space-x-2">
+            <div>
+              <p className="text-sm italic text-white/95">Satisfaction survey</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">
+                What Our Clients Think
+              </h2>
+              <div className="mt-10 space-y-6">
                 {[
-                  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80",
-                  "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=80&q=80",
-                  "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=80&q=80",
-                ].map((src, i) => (
-                  <img
-                    key={i}
-                    src={src}
-                    alt=""
-                    className="w-10 h-10 rounded-full border-2 border-white object-cover"
-                  />
+                  { label: "Punctuality of cleaners", pct: 96 },
+                  { label: "Quality of cleaning", pct: 94 },
+                  { label: "Respect for your home & belongings", pct: 100 },
+                ].map((row) => (
+                  <div key={row.label}>
+                    <div className="flex items-center justify-between gap-4 text-sm font-medium md:text-base">
+                      <span className="text-left">{row.label}</span>
+                      <span className="shrink-0 tabular-nums">{row.pct}%</span>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/25">
+                      <div
+                        className="h-full rounded-full bg-[#14B8A6]"
+                        style={{ width: `${row.pct}%` }}
+                      />
+                    </div>
+                  </div>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-                <span className="font-bold text-slate-900">
-                  {displayRating}
+              <p className="mt-10 text-right text-xs text-white/70">
+                *Clients satisfaction survey based on 298 responses
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-14 rounded-[28px] border border-[#BFDBFE] bg-white p-8 shadow-xl md:mt-20 md:p-10">
+            <HappyCustomersTestimonials />
+          </div>
+        </div>
+      </section>
+
+      {/* More than just clean */}
+      <section className="py-14 md:py-20" style={{ backgroundColor: HOME.background }}>
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <h2
+            className="mb-10 text-left text-3xl font-bold tracking-tight md:mb-14 md:text-4xl"
+            style={{ color: HOME.textDark }}
+          >
+            More than just clean
+          </h2>
+          <div className="grid gap-12 md:grid-cols-3 md:gap-8 lg:gap-10">
+            {[
+              {
+                title: "Service options",
+                description:
+                  "There's more than one way to clean with Shalean, no matter the size of your space or specific needs.",
+                image:
+                  "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=900&q=80",
+                imageAlt: "Vacuum cleaning carpet",
+                cta: "Explore services",
+                onCta: () => onNavigate("services"),
+              },
+              {
+                title: "150+ neighborhoods",
+                description:
+                  "Available across most major metropolitan areas. Schedule a clean and enjoy one less thing to worry about.",
+                image:
+                  "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=900&q=80",
+                imageAlt: "Modern bathroom interior",
+                cta: "Check coverage",
+                onCta: () => onNavigate("locations"),
+              },
+              {
+                title: "10,000+ happy homes",
+                description:
+                  "Our service spans the country so you can book a trusted professional no matter where life takes you.",
+                image:
+                  "https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=900&q=80",
+                imageAlt: "Bright modern home interior",
+                cta: "Read reviews",
+                onCta: () => {
+                  document
+                    .getElementById("reviews")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                },
+              },
+            ].map((card) => (
+              <article key={card.title} className="flex flex-col">
+                <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-neutral-100">
+                  <img
+                    src={card.image}
+                    alt={card.imageAlt}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <h3
+                  className="mt-6 text-lg font-bold md:text-xl"
+                  style={{ color: HOME.textDark }}
+                >
+                  {card.title}
+                </h3>
+                <p className="mt-2 flex-1 text-pretty text-sm leading-relaxed text-slate-600 md:text-[15px]">
+                  {card.description}
+                </p>
+                <button
+                  type="button"
+                  onClick={card.onCta}
+                  className="mt-5 w-fit text-left text-sm text-[#2563EB] underline decoration-[#93C5FD] underline-offset-[5px] transition-colors hover:text-[#1D4ED8]"
+                >
+                  {card.cta} →
+                </button>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Built for business scale */}
+      <section className="border-y border-[#BFDBFE]/50 bg-[#DBEAFE]/40 py-14 md:py-20">
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+            <div className="relative aspect-square max-h-[420px] w-full overflow-hidden rounded-3xl border border-[#BFDBFE] bg-slate-200/80">
+              <img
+                src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1000&q=80"
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover opacity-90"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-slate-900 shadow-lg">
+                  <span className="sr-only">Play video</span>
+                  <ChevronRight className="h-8 w-8 pl-1" />
                 </span>
               </div>
-              <span className="text-slate-500 text-sm">
-                ({displayTotalReviews} reviews)
-              </span>
             </div>
-            <div className="grid md:grid-cols-3 gap-6">
-              {[
-                {
-                  quote:
-                    "Nobody has ever cleaned my place with such attention to detail. The team was friendly, on time, and left my home sparkling!",
-                  name: "Fallah Maulana",
-                  avatar:
-                    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80",
-                },
-                {
-                  quote:
-                    "It's the first time my apartment has felt this fresh. Shalean really exceeded my expectations.",
-                  name: "Hanifa Maulina",
-                  avatar:
-                    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=80&q=80",
-                },
-                {
-                  quote:
-                    "They made my move-out cleaning effortless. Everything looked brand new again - totally worth it.",
-                  name: "Hanifa Maulina",
-                  avatar:
-                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80",
-                },
-              ].map((t, i) => (
-                <div
-                  key={i}
-                  className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+            <div>
+              <span className="inline-block rounded-full bg-[#2563EB]/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#1D4ED8]">
+                For business
+              </span>
+              <h2
+                className="mt-4 text-3xl font-bold tracking-tight md:text-4xl"
+                style={{ color: HOME.textDark }}
+              >
+                Built for business scale
+              </h2>
+              <p className="mt-4 max-w-xl leading-relaxed text-slate-600">
+                Recurring visits, clear SLAs, and account-friendly billing for teams
+                that need reliable coverage week after week.
+              </p>
+              <ul className="mt-8 space-y-3">
+                {[
+                  "Office spaces",
+                  "Retail stores",
+                  "Gyms & studios",
+                  "Medical facilities",
+                ].map((label) => (
+                  <li
+                    key={label}
+                    className="flex items-center gap-3 text-slate-800"
+                  >
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-[#14B8A6]" />
+                    <span className="font-medium">{label}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-10 flex flex-wrap items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => onNavigate("contact")}
+                  className="rounded-full bg-[#2563EB] px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
                 >
-                  <p className="text-slate-900 font-bold text-base leading-snug mb-6">
-                    &ldquo;{t.quote}&rdquo;
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={t.avatar}
-                      alt={t.name}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                    <div>
-                      <p className="font-bold text-slate-900">{t.name}</p>
-                      <div className="flex items-center gap-1 text-slate-700">
-                        {[1, 2, 3, 4, 5].map((_) => (
-                          <Star
-                            key={_}
-                            className="w-4 h-4 fill-amber-400 text-amber-400"
-                          />
-                        ))}
-                        <span className="text-sm font-semibold ml-1">5.0</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  Get a quote
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("services")}
+                  className="text-sm font-semibold text-[#2563EB] underline decoration-[#93C5FD] underline-offset-4 hover:text-[#1D4ED8]"
+                >
+                  Explore solutions
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Blog Preview */}
       <BlogPreviewSection onNavigate={onNavigate} />
 
-      {/* Local SEO Authority */}
-      <LocalSEOSection onNavigate={onNavigate} />
-
-      {/* Freshness Promo Banner – match design exactly */}
-      <section className="bg-slate-100 pt-2 pb-8">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-          <div className="relative overflow-hidden rounded-3xl border border-slate-200 shadow-xl min-h-[320px] lg:min-h-[380px]">
-            {/* Background image */}
-            <img
-              src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1600&q=80"
-              alt="Living room interior with sofa"
-              className="absolute inset-0 h-full w-full object-cover object-left"
-            />
-
-            {/* Dark gradient overlay for text contrast on left side */}
-            <div
-              className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent"
-              aria-hidden
-            />
-
-            {/* Left text content */}
-            <div className="relative z-10 flex h-full items-center">
-              <div className="px-8 py-10 md:px-12 lg:px-16 lg:py-14 max-w-xl">
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-tight mb-4">
-                  Let&apos;s Bring Freshness
-                  <br />
-                  Back to Your Home
-                </h2>
-                <p className="text-sm md:text-base text-white/90 leading-relaxed mb-7 max-w-md">
-                  Book your trusted cleaning service today and enjoy the comfort of a
-                  spotless, stress-free space — because every home deserves to feel
-                  fresh.
-                </p>
-                <Button
-                  onClick={() => onNavigate("booking")}
-                  variant="primary"
-                  className="bg-blue-600 hover:bg-blue-700 shadow-lg"
-                >
-                  Book a Cleaning Now
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+      {/* FAQ Section — support + accordion (matches marketing layout) */}
+      <section
+        className="border-t border-[#BFDBFE]/60 pt-14 pb-12 md:pt-20 md:pb-16"
+        style={{ backgroundColor: HOME.background }}
+      >
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.35fr)] lg:gap-16 lg:items-start">
+            <div className="max-w-md">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#14B8A6]">
+                Support
+              </p>
+              <h2
+                className="mt-3 text-3xl font-bold tracking-tight md:text-4xl"
+                style={{ color: HOME.textDark }}
+              >
+                Got questions?
+              </h2>
+              <p className="mt-4 leading-relaxed text-slate-600">
+                Everything you need to know about booking with Shalean. Can&apos;t
+                find what you&apos;re looking for?
+              </p>
+              <Link
+                href="/contact"
+                className="mt-8 inline-flex items-center gap-2 rounded-xl border border-[#BFDBFE] bg-white px-5 py-3 text-sm font-medium text-[#2563EB] shadow-sm transition-colors hover:bg-[#EFF6FF]"
+              >
+                <Phone className="h-4 w-4 shrink-0" aria-hidden />
+                Contact support
+              </Link>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="mt-8 lg:mt-8 bg-slate-100 pb-0">
-        <div className="max-w-7xl mx-auto px-6 w-full">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 md:p-12">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-6">
-              <div>
-                <div className="flex items-center gap-2 text-slate-500 bg-slate-100 w-fit px-3 py-1.5 rounded-full text-sm font-medium mb-4">
-                  <HelpCircle className="w-4 h-4" />
-                  <span>Support & FAQs</span>
-                </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-5">
-                  Common Questions
-                </h2>
-                <p className="text-slate-500 text-base md:text-lg max-w-2xl">
-                  Everything you need to know about booking, our cleaners, and how our service works.
-                </p>
-              </div>
-            </div>
-            <div className="space-y-4">
+            <div className="min-w-0 divide-y divide-[#BFDBFE]/80 border-y border-[#BFDBFE]/80">
               {FAQS.map((faq, idx) => (
-                <details
-                  key={idx}
-                  className="group border border-slate-200 rounded-xl overflow-hidden bg-white"
-                >
-                  <summary className="flex items-center justify-between gap-4 p-5 cursor-pointer hover:bg-slate-50 transition-colors list-none">
-                    <span className="font-semibold text-slate-800 text-left">
+                <details key={idx} className="group bg-white/80">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 pr-1 [&::-webkit-details-marker]:hidden">
+                    <span
+                      className="text-left text-base font-bold"
+                      style={{ color: HOME.textDark }}
+                    >
                       {faq.q}
                     </span>
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center bg-slate-50 group-open:bg-blue-50 group-open:border-blue-200">
-                      <Plus className="w-4 h-4 text-slate-500 group-open:text-blue-600 group-open:rotate-45 transition-transform" />
-                    </div>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#BFDBFE] bg-white text-slate-400 transition-colors group-open:rotate-180 group-open:border-[#93C5FD]">
+                      <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+                    </span>
                   </summary>
-                  <div className="p-5 pt-0 text-slate-600 border-t border-slate-100">
+                  <div className="pb-5 pr-12 text-sm leading-relaxed text-slate-600">
                     {faq.a}
                   </div>
                 </details>
@@ -892,6 +1477,114 @@ const HomePage = ({ onNavigate }: { onNavigate: (page: PageType) => void }) => {
           </div>
         </div>
       </section>
+
+      <AnimatePresence>
+        {heroScheduleModalOpen && (
+          <motion.div
+            key="hero-schedule-overlay"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40"
+              aria-label="Close dialog"
+              onClick={() => setHeroScheduleModalOpen(false)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="hero-schedule-dialog-title"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 w-full max-w-md rounded-[22px] bg-white p-6 pt-12 shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="hero-schedule-dialog-title" className="sr-only">
+                Choose when you need your cleaning
+              </h2>
+              <button
+                type="button"
+                onClick={() => setHeroScheduleModalOpen(false)}
+                className="absolute right-4 top-4 rounded-full p-1.5 text-neutral-900 transition-colors hover:bg-neutral-100"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" strokeWidth={2} />
+              </button>
+
+              <div className="space-y-0">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={heroScheduleDraft === "now"}
+                  onClick={() => setHeroScheduleDraft("now")}
+                  className="flex w-full items-center justify-between gap-4 py-4 text-left text-[15px] font-medium text-neutral-900"
+                >
+                  Pickup now
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+                      heroScheduleDraft === "now"
+                        ? "border-[#2563EB] bg-white"
+                        : "border-neutral-300 bg-white"
+                    )}
+                    aria-hidden
+                  >
+                    {heroScheduleDraft === "now" ? (
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#2563EB]" />
+                    ) : null}
+                  </span>
+                </button>
+                <div className="h-px w-full bg-neutral-200" />
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={heroScheduleDraft === "later"}
+                  onClick={() => setHeroScheduleDraft("later")}
+                  className="flex w-full items-center justify-between gap-4 py-4 text-left text-[15px] font-medium text-neutral-900"
+                >
+                  Schedule later
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+                      heroScheduleDraft === "later"
+                        ? "border-[#2563EB] bg-white"
+                        : "border-neutral-300 bg-white"
+                    )}
+                    aria-hidden
+                  >
+                    {heroScheduleDraft === "later" ? (
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#2563EB]" />
+                    ) : null}
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center justify-end gap-4 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setHeroScheduleModalOpen(false)}
+                  className="text-[15px] font-bold text-neutral-900 transition-colors hover:text-neutral-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmHeroSchedule}
+                  className="rounded-lg bg-[#2563EB] px-6 py-2.5 text-[15px] font-bold text-white transition-colors hover:bg-[#1D4ED8]"
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
@@ -964,9 +1657,15 @@ export const ShaleanWebsite = () => {
       const slug = parts[1] ?? "";
       const slugToStep: Record<string, number> = {
         "your-cleaning-plan": 1,
-        schedule: 2,
-        details: 3,
-        payment: 4,
+        preferences: 2,
+        schedule: 3,
+        cleaner: 4,
+        "your-details": 5,
+        checkout: 6,
+        /** Legacy URLs */
+        "tip-promo": 3,
+        details: 5,
+        payment: 6,
       };
       setBookingStep(slugToStep[slug] ?? 1);
     } else {
@@ -974,11 +1673,27 @@ export const ShaleanWebsite = () => {
     }
   }, [pathname]);
 
-  const navigate = (page: PageType) => {
+  const navigate = (page: PageType, bookingPrefill?: BookingRoutePrefill) => {
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (page === "booking") {
-      router.push("/booking/your-cleaning-plan");
+      const addr = bookingPrefill?.address?.trim();
+      if (addr) {
+        try {
+          sessionStorage.setItem("shaleanBookingAddressPrefill", addr);
+        } catch {
+          /* ignore */
+        }
+      }
+      const params = new URLSearchParams();
+      if (bookingPrefill?.service) {
+        const slug = getBookingServiceUrlSlug(bookingPrefill.service);
+        if (slug) params.set("service", slug);
+      }
+      const qs = params.toString();
+      router.push(
+        `/booking/your-cleaning-plan${qs ? `?${qs}` : ""}`
+      );
       return;
     }
     const path = PAGE_TO_PATH[page];
@@ -998,74 +1713,246 @@ export const ShaleanWebsite = () => {
 
   const isDashboardPage = false;
 
-  const isBookingConfirmed = currentPage === "booking" && bookingStep === 5;
+  const isBookingConfirmed = false;
+
+  const isHomePage = currentPage === "home";
+
+  const bookingStepperActiveIdx =
+    bookingStep >= 1 && bookingStep <= 6 ? bookingStep - 1 : 0;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-100">
+    <div
+      className={`min-h-screen flex flex-col font-sans text-slate-900 ${
+        currentPage === "booking"
+          ? "bg-[#F9F9F7]"
+          : currentPage === "home"
+            ? "bg-[#EFF6FF]"
+            : "bg-slate-100"
+      }`}
+    >
       {/* Navigation */}
-      {!isBookingConfirmed && (
-      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-4 pb-2">
-        <div className="w-full max-w-7xl px-6">
-          <div className="flex items-center justify-between rounded-full bg-black text-white px-6 py-2 shadow-lg gap-6">
+      {!isBookingConfirmed && isHomePage && (
+        <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/15 bg-[#2563EB] text-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-8 lg:gap-12 min-w-0">
+              <Link
+                href="/"
+                className="text-base md:text-lg font-bold text-white tracking-tight whitespace-nowrap flex-shrink-0"
+              >
+                Shalean
+              </Link>
+              <nav
+                className="hidden lg:flex items-center gap-8 text-sm font-medium text-white/90"
+                aria-label="Primary"
+              >
+                <Link
+                  href="/services"
+                  className="hover:text-white transition-colors"
+                >
+                  Services
+                </Link>
+                <Link
+                  href="/#how-it-works"
+                  className="hover:text-white transition-colors"
+                >
+                  How it works
+                </Link>
+                <Link
+                  href="/locations"
+                  className="hover:text-white transition-colors"
+                >
+                  Locations
+                </Link>
+                <Link
+                  href="/about"
+                  className="hover:text-white transition-colors"
+                >
+                  About
+                </Link>
+              </nav>
+            </div>
+
+            <div className="relative flex items-center gap-3 sm:gap-5 md:gap-6 flex-shrink-0">
+              <button
+                type="button"
+                className="hidden md:inline-flex items-center justify-center gap-1.5 px-2 h-9 rounded-lg text-white hover:bg-white/10 transition-colors"
+                aria-label="Language: English"
+              >
+                <Globe className="w-5 h-5 shrink-0" strokeWidth={2} aria-hidden />
+                <span className="text-sm font-semibold tracking-wide">EN</span>
+              </button>
+              <Link
+                href="/contact"
+                className="hidden sm:inline text-sm font-medium text-white/90 hover:text-white transition-colors"
+              >
+                Help
+              </Link>
+              {!isAuthenticated ? (
+                <Link
+                  href="/login"
+                  className="hidden sm:inline text-sm font-medium text-white/90 hover:text-white transition-colors"
+                >
+                  Log in
+                </Link>
+              ) : (
+                <div className="hidden sm:flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setAvatarMenuOpen((open) => !open)}
+                    className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center text-sm font-semibold border border-slate-200 hover:border-white/80 transition-colors flex-shrink-0"
+                    aria-expanded={avatarMenuOpen}
+                    aria-haspopup="true"
+                  >
+                    {session?.user?.name
+                      ? session.user.name.charAt(0).toUpperCase()
+                      : session?.user?.email
+                      ? session.user.email.charAt(0).toUpperCase()
+                      : "U"}
+                  </button>
+                  {avatarMenuOpen && (
+                    <div className="absolute right-0 top-12 w-44 rounded-xl bg-white text-slate-900 shadow-lg border border-slate-100 py-2 text-sm z-[100]">
+                      <button
+                        onClick={() => {
+                          setAvatarMenuOpen(false);
+                          const role = (session?.user as any)?.role;
+                          if (role === "admin") {
+                            window.location.href = "/admin";
+                          } else if (role === "customer") {
+                            window.location.href = "/customer";
+                          } else if (role === "cleaner") {
+                            window.location.href = "/cleaner";
+                          } else {
+                            navigate("home");
+                          }
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-slate-100"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-slate-500" />
+                        <span>Dashboard</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAvatarMenuOpen(false);
+                          navigate("contact");
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-slate-100"
+                      >
+                        <HelpCircle className="w-4 h-4 text-slate-500" />
+                        <span>Help</span>
+                      </button>
+                      <div className="my-1 h-px bg-slate-100" />
+                      <button
+                        onClick={() => {
+                          setAvatarMenuOpen(false);
+                          signOut({ callbackUrl: "/" });
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 hover:bg-red-50"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              <Link
+                href="/quote"
+                className="inline-flex items-center justify-center rounded-full bg-[#14B8A6] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#0D9488] sm:px-5 sm:text-sm"
+              >
+                Get Free Quote
+              </Link>
+              <button
+                type="button"
+                className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-md bg-white/10 hover:bg-white/20 text-white flex-shrink-0"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {!isBookingConfirmed && !isHomePage && (
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-black border-b border-white/10 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
             {/* Brand */}
             <Link
               href="/"
-              className="flex items-center gap-2 flex-shrink-0"
+              className="flex items-center gap-2 flex-shrink-0 text-white"
             >
-              <Image
-                src="/logo.png"
-                alt="Shalean"
-                width={32}
-                height={32}
-                className="h-8 w-8 object-contain"
-              />
-              <span className="text-lg font-black tracking-[0.2em]">
-                Shalean
+              {currentPage !== "booking" && (
+                <Image
+                  src="/logo.png"
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 object-contain"
+                />
+              )}
+              <span
+                className={`font-bold tracking-tight ${
+                  currentPage === "booking" ? "text-base sm:text-lg" : "text-lg"
+                }`}
+              >
+                Shalean{currentPage === "booking" ? "." : ""}
               </span>
             </Link>
 
             {/* Center: either nav links or booking stepper */}
-            <div className="flex-1 flex justify-center">
+            <div className="flex-1 flex justify-center min-w-0">
               {currentPage === "booking" ? (
                 <div
-                  className="hidden md:flex items-center gap-3 max-w-md w-full"
+                  className="hidden sm:flex items-center justify-center gap-1 sm:gap-2 max-w-xl w-full"
                   role="list"
                   aria-label="Booking steps"
                 >
-                  {["Plan", "Schedule", "Details", "Payment"].map(
-                    (label, idx) => {
-                      const current = idx + 1 === bookingStep;
-                      const completed = idx + 1 < bookingStep;
-                      return (
-                        <React.Fragment key={label}>
+                  {(
+                    [
+                      "Service",
+                      "Preferences",
+                      "Schedule",
+                      "Cleaner",
+                      "Details",
+                      "Pay",
+                    ] as const
+                  ).map((label, idx) => {
+                    const current = idx === bookingStepperActiveIdx;
+                    const completed = idx < bookingStepperActiveIdx;
+                    return (
+                      <React.Fragment key={label}>
+                        <div
+                          className="flex flex-col items-center gap-1 flex-1 min-w-0"
+                          role="listitem"
+                        >
                           <div
-                            className="flex flex-col items-center gap-1 flex-1"
-                            role="listitem"
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-black transition-all ${
+                              current
+                                ? "bg-white text-black"
+                                : completed
+                                  ? "bg-[#86EFAC] text-neutral-900 border border-[#86EFAC]"
+                                  : "bg-white/10 text-white/70 border border-white/15"
+                            }`}
+                            aria-current={current ? "step" : undefined}
+                            aria-label={label}
                           >
-                            <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                                current
-                                  ? "bg-blue-600 text-white shadow-md"
-                                  : completed
-                                  ? "bg-emerald-500 text-white"
-                                  : "bg-slate-200 text-slate-500"
-                              }`}
-                              aria-current={current ? "step" : undefined}
-                              aria-label={label}
-                            >
-                              {idx + 1}
-                            </div>
-                            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">
-                              {label}
-                            </span>
+                            {completed && !current ? (
+                              <CheckCircle2 className="w-4 h-4 sm:w-[18px] sm:h-[18px] stroke-[2.5]" />
+                            ) : (
+                              idx + 1
+                            )}
                           </div>
-                          {idx < 3 && (
-                            <div className="h-px flex-1 bg-slate-700/40 rounded-full" />
-                          )}
-                        </React.Fragment>
-                      );
-                    }
-                  )}
+                          <span className="hidden lg:block text-[8px] font-bold uppercase tracking-[0.12em] text-white/50 text-center truncate max-w-[4.5rem]">
+                            {label}
+                          </span>
+                        </div>
+                        {idx < 5 && (
+                          <div className="h-px w-2 sm:w-4 md:w-6 bg-white/15 self-start mt-[13px] sm:mt-[15px] flex-shrink-0" />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="hidden lg:flex items-center gap-8 text-sm">
@@ -1088,12 +1975,25 @@ export const ShaleanWebsite = () => {
             </div>
 
             {/* Contact CTA, Avatar & Mobile Menu Button */}
-            <div className="relative flex items-center gap-3 flex-shrink-0">
+            <div className="relative flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {currentPage === "booking" && (
+                <Link
+                  href="/"
+                  className="hidden md:inline text-xs sm:text-sm font-medium text-white/80 hover:text-white transition-colors whitespace-nowrap"
+                >
+                  Back to home
+                </Link>
+              )}
               <button
-                onClick={() => navigate("contact")}
-                className="hidden sm:inline-flex rounded-full bg-blue-600 hover:bg-blue-700 text-sm font-semibold px-5 py-2 text-white shadow-md transition-colors"
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  router.push("/quote");
+                }}
+                className="hidden sm:inline-flex rounded-full bg-[#86EFAC] hover:bg-[#6fe89a] text-xs sm:text-sm font-bold px-3 sm:px-5 py-2 text-black shadow-sm transition-colors whitespace-nowrap"
               >
-                Get Quote
+                Get Free Quote
               </button>
               {isAuthenticated && (
                 <div className="hidden lg:flex items-center gap-2">
@@ -1161,7 +2061,6 @@ export const ShaleanWebsite = () => {
                 <Menu className="w-5 h-5" />
               </button>
             </div>
-          </div>
         </div>
       </nav>
       )}
@@ -1177,7 +2076,12 @@ export const ShaleanWebsite = () => {
           >
             <div className="flex justify-between items-center mb-10">
               <div className="flex items-center gap-3">
-                {isAuthenticated && (
+                {isHomePage && (
+                  <span className="text-xl font-bold text-white tracking-tight">
+                    Shalean
+                  </span>
+                )}
+                {!isHomePage && isAuthenticated && (
                   <div
                     className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center text-base font-semibold border-2 border-blue-400/50 flex-shrink-0"
                     aria-hidden
@@ -1189,7 +2093,7 @@ export const ShaleanWebsite = () => {
                       : "U"}
                   </div>
                 )}
-                {!isAuthenticated && (
+                {!isHomePage && !isAuthenticated && (
                   <Image
                     src="/logo.png"
                     alt="Shalean"
@@ -1207,10 +2111,60 @@ export const ShaleanWebsite = () => {
               </button>
             </div>
             <div className="flex flex-col gap-6 text-lg">
-              <Link href="/" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Home</Link>
-              <Link href="/about" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">About</Link>
-              <Link href="/services" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Service</Link>
-              <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Pricing</Link>
+              {isHomePage ? (
+                <>
+                  <Link
+                    href="/services"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    Services
+                  </Link>
+                  <Link
+                    href="/#how-it-works"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    How it works
+                  </Link>
+                  <Link
+                    href="/locations"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    Locations
+                  </Link>
+                  <Link
+                    href="/about"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    About
+                  </Link>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 text-left font-medium text-white/90 hover:text-white transition-colors"
+                    aria-label="Language: English"
+                  >
+                    <Globe className="w-5 h-5 shrink-0" strokeWidth={2} aria-hidden />
+                    <span className="text-sm font-semibold tracking-wide">EN</span>
+                  </button>
+                  <Link
+                    href="/contact"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    Help
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Home</Link>
+                  <Link href="/about" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">About</Link>
+                  <Link href="/services" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Service</Link>
+                  <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="font-medium text-white/80 hover:text-white transition-colors">Pricing</Link>
+                </>
+              )}
               {isAuthenticated && (
                 <>
                   <button
@@ -1245,19 +2199,29 @@ export const ShaleanWebsite = () => {
                     setMobileMenuOpen(false);
                     window.location.href = "/login";
                   }}
-                  className="text-left font-medium text-white/80 hover:text-white transition-colors"
+                  className={`text-left font-medium transition-colors ${
+                    isHomePage
+                      ? "text-white/90 hover:text-white"
+                      : "text-white/80 hover:text-white"
+                  }`}
                 >
-                  Login or Sign Up
+                  {isHomePage ? "Log in" : "Login or Sign Up"}
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  navigate("contact");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  router.push("/quote");
                 }}
-                className="mt-4 inline-flex justify-center rounded-full bg-blue-600 hover:bg-blue-700 text-sm font-semibold px-6 py-3 text-white shadow-md transition-colors"
+                className={`mt-4 inline-flex justify-center rounded-full px-6 py-3 text-sm font-bold shadow-md transition-colors ${
+                  isHomePage
+                    ? "bg-[#14B8A6] text-white hover:bg-[#0D9488]"
+                    : "bg-blue-600 font-semibold text-white hover:bg-blue-700"
+                }`}
               >
-                Get Quote
+                Get Free Quote
               </button>
             </div>
           </motion.div>
@@ -1265,7 +2229,15 @@ export const ShaleanWebsite = () => {
       </AnimatePresence>
 
       {/* Content Area */}
-      <main className={`flex-grow ${isDashboardPage ? "" : "pt-24 md:pt-28"}`}>
+      <main
+        className={`flex-grow ${
+          isDashboardPage
+            ? ""
+            : isHomePage
+            ? "bg-[#EFF6FF] pt-14 md:pt-16"
+            : "pt-24 md:pt-28"
+        }`}
+      >
         {currentPage === "home" && <HomePage onNavigate={navigate} />}
         {currentPage === "booking" && (
           <BookingPage onNavigate={navigate} onStepChange={setBookingStep} />
@@ -1282,148 +2254,27 @@ export const ShaleanWebsite = () => {
       {/* Footer */}
       {!isDashboardPage && !isBookingConfirmed && (
         currentPage === "booking" ? (
-          <footer className="bg-black text-white h-20 flex items-center">
-            <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between text-xs sm:text-sm">
-              <span>©2026 Shalean. All rights reserved</span>
+          <footer className="flex h-20 items-center bg-[#0a0a0a] text-neutral-400">
+            <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 text-xs sm:text-sm">
+              <span>© 2026 Shalean. All rights reserved</span>
               <div className="flex items-center gap-4">
-                <Link href="/terms" className="text-white/70 hover:text-white transition">
+                <Link
+                  href="/terms"
+                  className="transition hover:text-white"
+                >
                   Terms of service
                 </Link>
-                <Link href="/cancellation-policy" className="text-white/70 hover:text-white transition">
+                <Link
+                  href="/cancellation-policy"
+                  className="transition hover:text-white"
+                >
                   Cancellation policy
                 </Link>
               </div>
             </div>
           </footer>
         ) : (
-          <footer className="bg-slate-100 text-neutral-100 pt-0 pb-10 -mt-4">
-            <div className="max-w-7xl mx-auto w-full px-6">
-              <div className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-black/90 px-6 py-10 md:px-10 md:py-12">
-              {/* Big watermark text */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-[-10%] flex justify-center opacity-10">
-                <span className="font-semibold tracking-[0.2em] text-[60px] md:text-[96px] lg:text-[128px]">
-                  SHALEAN
-                </span>
-              </div>
-
-              <div className="relative grid gap-10 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-                {/* Left: Brand */}
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <Image
-                      src="/logo.png"
-                      alt="Shalean"
-                      width={40}
-                      height={40}
-                      className="h-10 w-10 object-contain"
-                    />
-                    <p className="max-w-sm text-sm text-neutral-400">
-                      Professional home, office and Airbnb cleaning in Cape Town.
-                      Book online with trusted, vetted cleaners.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-neutral-400">
-                    {[Facebook, Twitter, Instagram].map((Icon, idx) => (
-                      <button
-                        key={idx}
-                        aria-label={idx === 0 ? "Facebook" : idx === 1 ? "X" : "Instagram"}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/60 text-neutral-200 transition hover:border-neutral-500 hover:bg-neutral-800"
-                      >
-                        <Icon className="h-4 w-4" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Right: Columns */}
-                <div className="grid gap-8 text-sm md:grid-cols-3">
-                  <div>
-                    <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      Explore
-                    </h3>
-                    <ul className="space-y-2">
-                      <li>
-                        <Link href="/" className="text-neutral-300 transition hover:text-white">Home</Link>
-                      </li>
-                      <li>
-                        <Link href="/booking/your-cleaning-plan" className="text-neutral-300 transition hover:text-white">Book a clean</Link>
-                      </li>
-                      <li>
-                        <Link href="/services" className="text-neutral-300 transition hover:text-white">Services</Link>
-                      </li>
-                      <li>
-                        <Link href="/pricing" className="text-neutral-300 transition hover:text-white">Pricing</Link>
-                      </li>
-                      <li>
-                        <Link href="/locations" className="text-neutral-300 transition hover:text-white">Locations</Link>
-                      </li>
-                      <li>
-                        <Link href="/about" className="text-neutral-300 transition hover:text-white">About</Link>
-                      </li>
-                      <li>
-                        <Link href="/contact" className="text-neutral-300 transition hover:text-white">Contact</Link>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      Company
-                    </h3>
-                    <ul className="space-y-2">
-                      <li>
-                        <Link href="/about" className="text-neutral-300 transition hover:text-white">About us</Link>
-                      </li>
-                      <li>
-                        <Link href="/careers" className="text-neutral-300 transition hover:text-white">Careers</Link>
-                      </li>
-                      <li>
-                        <Link href="/blog" className="text-neutral-300 transition hover:text-white">Blog</Link>
-                      </li>
-                      <li>
-                        <Link href="/locations/sea-point" className="text-neutral-300 transition hover:text-white">Areas we serve</Link>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                      Legal & support
-                    </h3>
-                    <ul className="space-y-2">
-                      <li>
-                        <Link href="/terms" className="text-neutral-300 transition hover:text-white">Terms of service</Link>
-                      </li>
-                      <li>
-                        <Link href="/cancellation-policy" className="text-neutral-300 transition hover:text-white">Cancellation policy</Link>
-                      </li>
-                      <li>
-                        <Link href="/promotions" className="text-neutral-300 transition hover:text-white">Promotions</Link>
-                      </li>
-                      <li>
-                        <Link href="/login" className="text-neutral-300 transition hover:text-white">Log in</Link>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-                {/* Bottom bar */}
-                <div className="relative mt-10 flex flex-col gap-4 border-t border-neutral-800 pt-6 text-xs text-neutral-500 md:flex-row md:items-center md:justify-between">
-                  <p>©2026 Shalean Cleaning Services. All rights reserved</p>
-                  <div className="flex items-center gap-6">
-                    <Link href="/terms" className="transition hover:text-neutral-200">
-                      Terms of service
-                    </Link>
-                    <Link href="/cancellation-policy" className="transition hover:text-neutral-200">
-                      Cancellation policy
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </footer>
+          <Footer />
         )
       )}
 

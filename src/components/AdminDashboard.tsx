@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import AdminPricingManager from "./AdminPricingManager";
 import { formatEstimatedDuration } from "@/lib/duration";
+import { WORKING_AREAS } from "@/lib/working-areas";
 
 type AdminTab =
   | "overview"
@@ -365,7 +366,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [customerDetailPage, setCustomerDetailPage] = useState(1);
   const [customerDetailPageSize, setCustomerDetailPageSize] = useState(5);
   const [settings, setSettings] = useState({
-    companyName: "Shalean Cleaning Services",
+    companyName: "Bokkies",
     defaultCity: "Cape Town",
     workingHours: "08:00 - 18:00",
     sameDayBookings: false,
@@ -378,15 +379,12 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
 
-  const WORKING_AREAS = [
-    "Sea Point", "Green Point", "Camps Bay", "Gardens", "Vredehoek",
-    "Claremont", "Kenilworth", "Rondebosch", "Durbanville", "Bellville", "Constantia",
-  ];
   const ADMIN_BOOK_SERVICES = [
     { id: "standard", label: "Standard Cleaning" },
     { id: "deep", label: "Deep Cleaning" },
     { id: "move", label: "Moving Cleaning" },
     { id: "airbnb", label: "Airbnb Cleaning" },
+    { id: "laundry", label: "Laundry & Ironing Cleaning" },
     { id: "carpet", label: "Carpet Cleaning" },
   ] as const;
   const [bookStep, setBookStep] = useState(1);
@@ -2995,6 +2993,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       <option value="standard">Standard</option>
                       <option value="deep">Deep Clean</option>
                       <option value="airbnb">Airbnb</option>
+                      <option value="laundry">Laundry & Ironing</option>
                       <option value="move_in">Move In</option>
                       <option value="move_out">Move Out</option>
                       <option value="carpet">Carpet</option>

@@ -35,26 +35,56 @@ import {
   AlertCircle,
   Loader2,
   ChevronDown,
-  Award,
   User,
+  MapPin,
+  Check,
+  Bath,
+  Heart,
+  Tag,
+  Phone,
+  Shirt,
+  Package,
+  Droplets,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { format } from "date-fns";
+import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
+import { WORKING_AREA_GROUPS, inferWorkingAreaFromAddress } from "@/lib/working-areas";
 import { useSession } from "next-auth/react";
 import { computeEstimatedDurationMinutes, formatEstimatedDuration } from "@/lib/duration";
+import { computeDynamicPricing } from "@/lib/pricing-engine";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
-type ServiceType = "standard" | "deep" | "move" | "airbnb" | "carpet";
+type ServiceType =
+  | "standard"
+  | "deep"
+  | "move"
+  | "airbnb"
+  | "laundry"
+  | "carpet";
 type PropertyType = "apartment" | "house" | "office";
 type OfficeScale = "small" | "medium" | "large" | "xlarge" | "";
 type PaymentMethod = "online";
-type CleaningFrequency = "once" | "weekly" | "multi_week";
+type CleaningFrequency = "once" | "weekly" | "bi_weekly" | "monthly" | "multi_week";
 type DayOfWeek = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 
 interface Extra {
   id: string;
   label: string;
+  /** Short line shown on Preferences step cards */
+  description?: string;
   price: number;
   icon: React.ReactNode;
   recommended?: boolean;
@@ -112,8 +142,12 @@ interface BookingFormData {
   paymentMethod: PaymentMethod;
   tipAmount: number;
   promoCode: string;
+  /** Server-validated promo discount (ZAR), applied at pay */
+  appliedPromoDiscount: number;
   discountAmount: number;
   acceptedTerms: boolean;
+  /** Supplies: Shalean brings products (+equipment fee from config) vs customer supplies */
+  equipmentMode: "shalean" | "customer";
 }
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -138,6 +172,8 @@ type ServiceMultipliers = {
    */
   weeklyDiscount?: number | null;
   multiWeekDiscount?: number | null;
+  biWeeklyDiscount?: number | null;
+  monthlyDiscount?: number | null;
   serviceFee?: number | null;
   equipmentCharge?: number | null;
 };
@@ -194,6 +230,14 @@ const SERVICES = [
     color: "sky",
   },
   {
+    id: "laundry" as ServiceType,
+    title: "Laundry & Ironing Cleaning",
+    description: "Wash, dry, fold, and press at your home.",
+    price: 280,
+    icon: <Shirt className="w-6 h-6" />,
+    color: "rose",
+  },
+  {
     id: "carpet" as ServiceType,
     title: "Carpet Cleaning",
     description: "Deep fibre carpet clean.",
@@ -206,95 +250,234 @@ const SERVICES = [
 const STANDARD_EXTRAS: Extra[] = [
   {
     id: "fridge",
-    label: "Inside Fridge",
+    label: "Inside fridge",
+    description: "Full interior clean and deodorize",
     price: 30,
     icon: <Refrigerator className="w-5 h-5" />,
     recommended: true,
   },
   {
     id: "oven",
-    label: "Inside Oven",
+    label: "Inside oven",
+    description: "Racks, door, and interior degrease",
     price: 30,
     icon: <Microwave className="w-5 h-5" />,
     recommended: true,
   },
   {
     id: "windows",
-    label: "Interior Windows",
+    label: "Interior windows",
+    description: "Streak-free glass and tracks",
     price: 40,
     icon: <AppWindow className="w-5 h-5" />,
   },
   {
     id: "cabinets",
-    label: "Inside Cabinets",
+    label: "Inside cabinets",
+    description: "Shelves, hinges, and doors",
     price: 30,
     icon: <Archive className="w-5 h-5" />,
   },
   {
     id: "walls",
-    label: "Wall Spot Cleaning",
+    label: "Interior walls",
+    description: "Spot marks and light scuffs",
     price: 35,
     icon: <BrickWall className="w-5 h-5" />,
   },
   {
+    id: "laundry_load",
+    label: "Laundry (per load)",
+    description: "Wash, dry & fold — per machine load",
+    price: 85,
+    icon: <Package className="w-5 h-5" />,
+  },
+  {
+    id: "ironing",
+    label: "Ironing (per item)",
+    description: "Shirts, trousers, and linen",
+    price: 28,
+    icon: <Shirt className="w-5 h-5" />,
+  },
+  {
     id: "extra_cleaner",
-    label: "Extra Cleaner",
+    label: "Extra cleaner",
+    description: "Additional pro on the day",
     price: 350,
     icon: <User className="w-5 h-5" />,
     recommended: true,
-  },
-  {
-    id: "equipment",
-    label: "Equipment Request",
-    price: 200,
-    icon: <Award className="w-5 h-5" />,
   },
 ];
 
 const DEEP_MOVE_EXTRAS: Extra[] = [
   {
     id: "balcony",
-    label: "Balcony Cleaning",
+    label: "Balcony cleaning",
+    description: "Floors, rails, and glass",
     price: 250,
     icon: <Sun className="w-5 h-5" />,
     recommended: true,
   },
   {
     id: "carpet_deep",
-    label: "Carpet Cleaning",
+    label: "Carpet cleaning",
+    description: "Deep fibre treatment",
     price: 300,
     icon: <LayoutGrid className="w-5 h-5" />,
     recommended: true,
   },
   {
     id: "ceiling",
-    label: "Ceiling Cleaning",
+    label: "Ceiling cleaning",
+    description: "Cobwebs, vents, and dust",
     price: 300,
     icon: <Sparkles className="w-5 h-5" />,
   },
   {
     id: "couch",
-    label: "Couch Cleaning",
+    label: "Couch cleaning",
+    description: "Fabric refresh and vacuum",
     price: 130,
     icon: <Sofa className="w-5 h-5" />,
   },
   {
     id: "garage",
-    label: "Garage Cleaning",
+    label: "Garage cleaning",
+    description: "Sweep, dust, and tidy",
     price: 110,
     icon: <CarFront className="w-5 h-5" />,
   },
   {
     id: "mattress",
-    label: "Mattress Cleaning",
+    label: "Mattress cleaning",
+    description: "Sanitise and deodorise",
     price: 350,
     icon: <Bed className="w-5 h-5" />,
   },
   {
     id: "outside_windows",
-    label: "Exterior Windows",
+    label: "Exterior windows",
+    description: "Reach-and-wash where safe",
     price: 125,
     icon: <Maximize2 className="w-5 h-5" />,
+  },
+];
+
+/** Airbnb hosts: turnover-focused add-ons plus shared home extras. */
+const AIRBNB_EXTRAS: Extra[] = [
+  {
+    id: "linen_refresh",
+    label: "Full linen change",
+    description: "Beds stripped and fresh linen",
+    price: 95,
+    icon: <Bed className="w-5 h-5" />,
+    recommended: true,
+  },
+  {
+    id: "guest_supplies",
+    label: "Guest supplies restock",
+    description: "Toiletries, tea & coffee basics",
+    price: 45,
+    icon: <Heart className="w-5 h-5" />,
+  },
+  {
+    id: "fridge",
+    label: "Inside fridge",
+    description: "Full interior clean and deodorize",
+    price: 30,
+    icon: <Refrigerator className="w-5 h-5" />,
+    recommended: true,
+  },
+  {
+    id: "oven",
+    label: "Inside oven",
+    description: "Racks, door, and interior degrease",
+    price: 30,
+    icon: <Microwave className="w-5 h-5" />,
+  },
+  {
+    id: "windows",
+    label: "Interior windows",
+    description: "Streak-free glass and tracks",
+    price: 40,
+    icon: <AppWindow className="w-5 h-5" />,
+  },
+  {
+    id: "cabinets",
+    label: "Inside cabinets",
+    description: "Shelves, hinges, and doors",
+    price: 30,
+    icon: <Archive className="w-5 h-5" />,
+  },
+  {
+    id: "walls",
+    label: "Interior walls",
+    description: "Spot marks and light scuffs",
+    price: 35,
+    icon: <BrickWall className="w-5 h-5" />,
+  },
+  {
+    id: "laundry_load",
+    label: "Laundry (per load)",
+    description: "Wash, dry & fold — per machine load",
+    price: 85,
+    icon: <Package className="w-5 h-5" />,
+  },
+  {
+    id: "ironing",
+    label: "Ironing (per item)",
+    description: "Shirts, trousers, and linen",
+    price: 28,
+    icon: <Shirt className="w-5 h-5" />,
+  },
+  {
+    id: "extra_cleaner",
+    label: "Extra cleaner",
+    description: "Additional pro on the day",
+    price: 350,
+    icon: <User className="w-5 h-5" />,
+    recommended: true,
+  },
+];
+
+/** Standalone Laundry & Ironing service — step 2 focuses on fabric care only. */
+const LAUNDRY_IRONING_EXTRAS: Extra[] = [
+  {
+    id: "laundry_load",
+    label: "Wash & fold (per load)",
+    description: "Machine wash, dry, and fold",
+    price: 85,
+    icon: <Package className="w-5 h-5" />,
+    recommended: true,
+  },
+  {
+    id: "ironing",
+    label: "Ironing (per item)",
+    description: "Pressed shirts, trousers, linen",
+    price: 28,
+    icon: <Shirt className="w-5 h-5" />,
+    recommended: true,
+  },
+  {
+    id: "delicates",
+    label: "Delicates (per item)",
+    description: "Hand wash or gentle cycle",
+    price: 45,
+    icon: <Droplets className="w-5 h-5" />,
+  },
+  {
+    id: "stain_treatment",
+    label: "Stain treatment",
+    description: "Pre-treat spots before wash",
+    price: 55,
+    icon: <Sparkles className="w-5 h-5" />,
+  },
+  {
+    id: "extra_cleaner",
+    label: "Extra cleaner",
+    description: "Additional pro on the day",
+    price: 350,
+    icon: <User className="w-5 h-5" />,
   },
 ];
 
@@ -305,11 +488,21 @@ const QUANTITY_ENABLED_EXTRAS = new Set([
   "garage",
   "mattress",
   "outside_windows",
+  "laundry_load",
+  "ironing",
+  "linen_refresh",
+  "delicates",
 ]);
 
 const getExtrasForService = (service: ServiceType): Extra[] => {
   if (service === "deep" || service === "move") {
     return DEEP_MOVE_EXTRAS;
+  }
+  if (service === "airbnb") {
+    return AIRBNB_EXTRAS;
+  }
+  if (service === "laundry") {
+    return LAUNDRY_IRONING_EXTRAS;
   }
   return STANDARD_EXTRAS;
 };
@@ -336,7 +529,7 @@ const INDIVIDUAL_CLEANERS: Cleaner[] = [
     rating: 4.8,
     reviews: 214,
     badge: "Most Booked",
-    workingAreas: ["Sea Point", "Gardens", "Vredehoek"],
+    workingAreas: ["Sea Point", "Gardens", "Vredehoek", "Observatory"],
     unavailableDates: ["2024-05-21"],
   },
   {
@@ -358,7 +551,7 @@ const INDIVIDUAL_CLEANERS: Cleaner[] = [
     experience: "4 years",
     rating: 4.9,
     reviews: 173,
-    workingAreas: ["Durbanville", "Bellville"],
+    workingAreas: ["Durbanville", "Bellville", "Table View", "Century City"],
     unavailableDates: [],
   },
 ];
@@ -371,7 +564,7 @@ const TEAMS: Team[] = [
     experience: "Senior Level",
     availability: "high",
     speciality: "Deep & Move-In/Out specialists",
-    workingAreas: ["Sea Point", "Green Point", "Gardens"],
+    workingAreas: ["Sea Point", "Green Point", "Gardens", "Observatory"],
     unavailableDates: [],
   },
   {
@@ -381,7 +574,7 @@ const TEAMS: Team[] = [
     experience: "Expert Level",
     availability: "medium",
     speciality: "Large property experts",
-    workingAreas: ["Claremont", "Kenilworth", "Constantia"],
+    workingAreas: ["Claremont", "Kenilworth", "Constantia", "Table View", "Century City"],
     unavailableDates: [],
   },
   {
@@ -391,7 +584,7 @@ const TEAMS: Team[] = [
     experience: "Specialist Level",
     availability: "high",
     speciality: "Compact & fast turnaround",
-    workingAreas: ["Vredehoek", "Gardens", "Sea Point"],
+    workingAreas: ["Vredehoek", "Gardens", "Sea Point", "Observatory"],
     unavailableDates: [],
   },
 ];
@@ -399,23 +592,34 @@ const TEAMS: Team[] = [
 const TIME_SLOTS = ["08:00", "10:00", "13:00", "15:00"];
 const DAYS_AHEAD = 90;
 
-const WORKING_AREAS = [
-  "Sea Point",
-  "Green Point",
-  "Camps Bay",
-  "Gardens",
-  "Vredehoek",
-  "Claremont",
-  "Kenilworth",
-  "Rondebosch",
-  "Durbanville",
-  "Bellville",
-  "Constantia",
+const SERVICE_DROPDOWN_ICON_WRAP: Record<string, string> = {
+  blue: "bg-blue-50 text-blue-600",
+  indigo: "bg-indigo-50 text-indigo-600",
+  violet: "bg-violet-50 text-violet-600",
+  sky: "bg-sky-50 text-sky-600",
+  teal: "bg-teal-50 text-teal-600",
+  rose: "bg-rose-50 text-rose-600",
+};
+
+const TOTAL_STEPS = 6;
+
+const STEP_LABELS = [
+  "Service & home",
+  "Preferences",
+  "Schedule",
+  "Cleaner & team",
+  "Your details",
+  "Payment",
 ];
 
-const STEP_LABELS = ["Plan", "Schedule", "Details", "Payment"];
-
-const STEP_SLUGS = ["your-cleaning-plan", "schedule", "details", "payment"] as const;
+const STEP_SLUGS = [
+  "your-cleaning-plan",
+  "preferences",
+  "schedule",
+  "cleaner",
+  "your-details",
+  "checkout",
+] as const;
 
 type StepSlug = (typeof STEP_SLUGS)[number];
 
@@ -448,8 +652,10 @@ const DEFAULT_FORM: BookingFormData = {
   paymentMethod: "online",
   tipAmount: 0,
   promoCode: "",
+  appliedPromoDiscount: 0,
   discountAmount: 0,
   acceptedTerms: false,
+  equipmentMode: "shalean",
 };
 
 const SERVICE_TITLE_SLUGS: Record<ServiceType, string> = SERVICES.reduce(
@@ -473,6 +679,14 @@ const SERVICE_SLUG_TO_ID: Record<string, ServiceType> = Object.entries(
   return acc;
 }, {} as Record<string, ServiceType>);
 
+/** Value for `?service=` — matches keys in SERVICE_SLUG_TO_ID (e.g. standard → standard-cleaning). */
+export function getBookingServiceUrlSlug(serviceId: string): string | undefined {
+  if (serviceId in SERVICE_TITLE_SLUGS) {
+    return SERVICE_TITLE_SLUGS[serviceId as ServiceType];
+  }
+  return undefined;
+}
+
 function getStepSlug(step: number): StepSlug {
   const index = Math.max(1, Math.min(STEP_SLUGS.length, step)) - 1;
   return STEP_SLUGS[index];
@@ -491,6 +705,33 @@ function getDatesForMonth(): string[] {
   }
 
   return dates;
+}
+
+/** Parse YYYY-MM-DD in local calendar (avoids UTC off-by-one with plain parseISO). */
+function parseLocalDate(dateStr: string): Date {
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+    return new Date();
+  }
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d);
+}
+
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** "HH:mm" slot string → readable label (e.g. 8:30 am). */
+function formatTimeSlotLabel(slot: string): string {
+  const parts = slot.split(":");
+  if (parts.length < 2) return slot;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return slot;
+  return format(new Date(2000, 0, 1, h, m), "h:mm a");
 }
 
 /**
@@ -597,6 +838,10 @@ function useCalcTotal(
   extrasTotal: number;
   tipAmount: number;
   discountAmount: number;
+  peakCharge: number;
+  weekendCharge: number;
+  areaMultiplier: number;
+  afterAreaSubtotal: number;
   subtotal: number;
   total: number;
   estimatedDurationMinutes: number;
@@ -671,9 +916,12 @@ function useCalcTotal(
 
     const tipAmount = data.tipAmount;
     const serviceFee = multipliers.serviceFee ?? 0;
-    const equipmentCharge = multipliers.equipmentCharge ?? 0;
+    const equipmentCharge =
+      data.equipmentMode === "customer"
+        ? 0
+        : multipliers.equipmentCharge ?? 0;
 
-    const subtotalBeforeDiscount =
+    const lineSubtotal =
       basePrice +
       bedroomAdd +
       bathroomAdd +
@@ -688,22 +936,19 @@ function useCalcTotal(
       serviceFee +
       equipmentCharge;
 
-    let discountAmount = 0;
-    const cleaningFrequency = data.cleaningFrequency.toLowerCase();
-    if (cleaningFrequency === "weekly" && multipliers.weeklyDiscount != null) {
-      discountAmount = Math.round(
-        subtotalBeforeDiscount * multipliers.weeklyDiscount
-      );
-    } else if (
-      cleaningFrequency === "multi_week" &&
-      multipliers.multiWeekDiscount != null
-    ) {
-      discountAmount = Math.round(
-        subtotalBeforeDiscount * multipliers.multiWeekDiscount
-      );
-    }
-
-    const subtotal = subtotalBeforeDiscount;
+    const dyn = computeDynamicPricing({
+      lineSubtotal,
+      cleaningFrequency: data.cleaningFrequency,
+      weeklyDiscount: multipliers.weeklyDiscount,
+      multiWeekDiscount: multipliers.multiWeekDiscount,
+      biWeeklyDiscount: multipliers.biWeeklyDiscount,
+      monthlyDiscount: multipliers.monthlyDiscount,
+      date: data.date,
+      time: data.time,
+      workingArea: data.workingArea,
+      promoDiscountAmount: data.appliedPromoDiscount ?? 0,
+      tipAmount,
+    });
 
     const estimatedDurationMinutes = computeEstimatedDurationMinutes({
       service: data.service,
@@ -733,66 +978,19 @@ function useCalcTotal(
       carpetExtraCleanerAdd,
       extrasTotal,
       tipAmount,
-      discountAmount,
-      subtotal,
-      total: Math.max(0, subtotal - discountAmount) + tipAmount,
+      discountAmount: dyn.discountAmount,
+      peakCharge: dyn.peakCharge,
+      weekendCharge: dyn.weekendCharge,
+      areaMultiplier: dyn.areaMultiplier,
+      afterAreaSubtotal: dyn.afterAreaSubtotal,
+      subtotal: lineSubtotal,
+      total: dyn.total,
       estimatedDurationMinutes,
     };
   }, [data, overrides]);
 }
 
 // ─── SHARED UI COMPONENTS ──────────────────────────────────────────────────────
-
-const StepTitle = ({
-  children,
-  subtitle,
-}: {
-  children: React.ReactNode;
-  subtitle?: string;
-}) => (
-  <div className="mb-6">
-    <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-1.5 leading-tight">
-      {children}
-    </h3>
-    {subtitle && (
-      <p className="text-[11px] sm:text-sm font-medium text-slate-500 leading-relaxed">
-        {subtitle}
-      </p>
-    )}
-  </div>
-);
-
-const SectionHeader = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex items-center gap-2 mb-4 pt-6 border-t border-slate-100 first:border-t-0 first:pt-0">
-    <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-    <h4 className="font-black text-slate-900 text-sm uppercase tracking-wider">
-      {children}
-    </h4>
-  </div>
-);
-
-const SelectionCard = ({
-  selected,
-  onClick,
-  children,
-  className = "",
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  className?: string;
-}) => (
-  <div
-    onClick={onClick}
-    className={`w-full rounded-xl border-2 cursor-pointer transition-all duration-200 p-4 ${
-      selected
-        ? "border-blue-600 bg-blue-50/50 shadow-sm"
-        : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
-    } ${className}`}
-  >
-    {children}
-  </div>
-);
 
 const FieldLabel = ({
   children,
@@ -917,6 +1115,91 @@ const CounterRow = ({
   );
 };
 
+const Step1CounterRow = ({
+  icon,
+  label,
+  sub,
+  value,
+  onChange,
+  min = 0,
+  max = 10,
+  layout = "row",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  sub?: string;
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  /** `column`: stacked label + controls for horizontal grid (e.g. home size). */
+  layout?: "row" | "column";
+}) => {
+  const safeMin = min ?? 0;
+  const safeMax = max ?? 999;
+  const safeValue = Number.isFinite(value) ? value : safeMin;
+
+  const controls = (
+    <div className="flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(safeMin, safeValue - 1))}
+        className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-neutral-200 bg-white flex items-center justify-center hover:bg-neutral-50 active:scale-[0.98] transition-colors"
+        aria-label={`Decrease ${label}`}
+      >
+        <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-700" />
+      </button>
+      <span className="w-6 sm:w-7 text-center text-base font-bold text-neutral-900 tabular-nums">
+        {safeValue}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(safeMax, safeValue + 1))}
+        className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-neutral-200 bg-white flex items-center justify-center hover:bg-neutral-50 active:scale-[0.98] transition-colors"
+        aria-label={`Increase ${label}`}
+      >
+        <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-700" />
+      </button>
+    </div>
+  );
+
+  if (layout === "column") {
+    return (
+      <div className="flex flex-col items-center gap-2.5 sm:gap-3 py-3 sm:py-4 px-1 sm:px-2 min-w-0">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-800 shrink-0">
+          {icon}
+        </div>
+        <div className="text-center min-w-0 w-full">
+          <p className="font-semibold text-neutral-900 text-xs sm:text-sm leading-tight">
+            {label}
+          </p>
+          {sub && (
+            <p className="text-[10px] sm:text-xs text-neutral-500 mt-0.5 line-clamp-2">
+              {sub}
+            </p>
+          )}
+        </div>
+        {controls}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-4 py-4 border-b border-neutral-100 last:border-0">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-800 shrink-0">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-neutral-900 text-sm">{label}</p>
+          {sub && <p className="text-xs text-neutral-500">{sub}</p>}
+        </div>
+      </div>
+      {controls}
+    </div>
+  );
+};
+
 // ─── STEP 1: PLAN (Service + Property + Area) ───────────────────────────────
 
 const Step1Plan = ({
@@ -930,221 +1213,322 @@ const Step1Plan = ({
   errors?: Partial<Record<keyof BookingFormData, string>>;
   pricingState: ServicePricingState;
 }) => {
-  const [quantityModalExtra, setQuantityModalExtra] = useState<Extra | null>(
-    null
-  );
-  const [quantityModalValue, setQuantityModalValue] = useState<number>(1);
+  const [serviceOpen, setServiceOpen] = useState(false);
+  const [areaOpen, setAreaOpen] = useState(false);
 
-  const setExtraQuantity = useCallback(
-    (id: string, quantity: number) => {
-      const clamped = Math.max(0, Math.min(20, quantity));
-      setData((prev) => {
-        const withoutId = prev.extras.filter((e) => e !== id);
-        if (clamped <= 0) {
-          return {
-            ...prev,
-            extras: withoutId,
-          };
-        }
-        return {
-          ...prev,
-          extras: [...withoutId, ...Array(clamped).fill(id)],
-        };
-      });
-    },
-    [setData]
-  );
+  const mult = pricingState.multipliersByService[data.service] ?? {};
+  const overridesForExtras = pricingState.extrasByService[data.service] ?? {};
+  const extraCleanerMeta = STANDARD_EXTRAS.find((e) => e.id === "extra_cleaner");
+  const extraCleanerDisplayPrice =
+    overridesForExtras.extra_cleaner ?? extraCleanerMeta?.price ?? 0;
+  const isHomeStyleService =
+    data.service === "standard" ||
+    data.service === "airbnb" ||
+    data.service === "laundry";
+  const hasHomeExtraCleaner = data.extras.includes("extra_cleaner");
+  const weeklyPct = Math.round((mult.weeklyDiscount ?? 0.2) * 100);
+  const biPct = Math.round((mult.biWeeklyDiscount ?? 0.15) * 100);
+  const monthlyPct = Math.round((mult.monthlyDiscount ?? 0.1) * 100);
+  const multiWeekPct = Math.round((mult.multiWeekDiscount ?? 0.15) * 100);
+
+  /** Deep, move-in/out, and carpet cleans are one-off or longer cadence only — no weekly/bi-weekly. */
+  const weeklyBiWeeklyDisabledForService =
+    data.service === "deep" || data.service === "move" || data.service === "carpet";
+
+  useEffect(() => {
+    if (!weeklyBiWeeklyDisabledForService) return;
+    setData((prev) => {
+      if (prev.cleaningFrequency !== "weekly" && prev.cleaningFrequency !== "bi_weekly") {
+        return prev;
+      }
+      return { ...prev, cleaningFrequency: "once", cleaningDays: [] };
+    });
+  }, [weeklyBiWeeklyDisabledForService, setData]);
+
+  const selectedService = SERVICES.find((s) => s.id === data.service) ?? SERVICES[0];
+
+  const applyService = (id: ServiceType) => {
+    setData((prev) => {
+      const isHomeService = prev.propertyType !== "office" && id !== "carpet";
+      const isServiceChange = prev.service !== id;
+      return {
+        ...prev,
+        service: id,
+        cleanerId: "",
+        teamId: "",
+        ...(isHomeService && isServiceChange ? { bedrooms: 2, bathrooms: 1, extraRooms: 0 } : {}),
+      };
+    });
+    setServiceOpen(false);
+  };
+
+  const applyArea = (area: string) => {
+    setData((prev) => ({
+      ...prev,
+      workingArea: area,
+      cleanerId: "",
+      teamId: "",
+    }));
+    setAreaOpen(false);
+  };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
-        <StepTitle subtitle="Set your service, property, and location below. Sections 1–3 guide you through the plan.">
-          Your Cleaning Plan
-        </StepTitle>
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+          Book your clean
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+          Complete your booking
+        </h2>
+        <div className="mt-8">
+          <h3 className="text-base font-bold text-neutral-900">Service & home size</h3>
+          <p className="text-sm text-neutral-500 mt-1 max-w-xl">
+            Choose your service, where you are, and how we should equip the clean.
+          </p>
+        </div>
+      </div>
 
-        <SectionHeader>1. Service type</SectionHeader>
-        <div className="grid grid-cols-4 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
-          {SERVICES.map((s) => {
-            const selected = data.service === s.id;
-            const overrideBase = pricingState.baseByService[s.id];
-            const displayPrice =
-              overrideBase != null ? overrideBase : s.price;
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <span className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2">
+            Service
+          </span>
+          <Popover open={serviceOpen} onOpenChange={setServiceOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-expanded={serviceOpen}
+                aria-haspopup="listbox"
+                className="relative w-full flex items-center gap-3 pl-3 pr-10 py-3.5 rounded-xl border border-neutral-200 bg-white text-left text-sm font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-400 transition-shadow"
+              >
+                <span
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                    SERVICE_DROPDOWN_ICON_WRAP[selectedService.color] ?? "bg-neutral-100 text-neutral-700",
+                  )}
+                >
+                  {React.cloneElement(selectedService.icon as React.ReactElement, {
+                    className: "w-5 h-5",
+                  })}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{selectedService.title}</span>
+                <ChevronDown
+                  className={cn(
+                    "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 shrink-0 transition-transform",
+                    serviceOpen && "rotate-180",
+                  )}
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={6}
+              className="p-2 w-[min(calc(100vw-1.5rem),22rem)] max-h-[min(70vh,420px)] overflow-y-auto rounded-xl border border-neutral-200 shadow-lg"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <p className="px-2 pt-1 pb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Choose a service
+              </p>
+              <ul role="listbox" className="space-y-1">
+                {SERVICES.map((s) => {
+                  const base = pricingState.baseByService[s.id] ?? s.price;
+                  const active = data.service === s.id;
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        onClick={() => applyService(s.id)}
+                        className={cn(
+                          "w-full flex gap-3 rounded-lg px-2 py-2.5 text-left transition-colors",
+                          active
+                            ? "bg-emerald-50 ring-1 ring-emerald-200/80"
+                            : "hover:bg-neutral-50",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                            SERVICE_DROPDOWN_ICON_WRAP[s.color] ?? "bg-neutral-100 text-neutral-700",
+                          )}
+                        >
+                          {React.cloneElement(s.icon as React.ReactElement, {
+                            className: "w-5 h-5",
+                          })}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-semibold text-neutral-900 text-sm leading-snug">
+                            {s.title}
+                          </span>
+                          <span className="block text-xs text-neutral-500 mt-0.5 leading-snug">
+                            {s.description}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold tabular-nums text-neutral-600 self-center">
+                          From R{base}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div>
+          <span className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2">
+            Area
+          </span>
+          <Popover open={areaOpen} onOpenChange={setAreaOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-expanded={areaOpen}
+                aria-haspopup="listbox"
+                className={cn(
+                  "relative w-full flex items-center gap-3 pl-10 pr-10 py-3.5 rounded-xl border bg-white text-left text-sm font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 transition-shadow",
+                  errors.workingArea ? "border-red-400 bg-red-50" : "border-neutral-200 focus:border-neutral-400",
+                  !data.workingArea && "text-neutral-500",
+                )}
+              >
+                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <span className="min-w-0 flex-1 truncate">
+                  {data.workingArea || "Select an area"}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 shrink-0 transition-transform",
+                    areaOpen && "rotate-180",
+                  )}
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={6}
+              className="p-2 w-[min(calc(100vw-1.5rem),22rem)] max-h-[min(70vh,420px)] overflow-y-auto rounded-xl border border-neutral-200 shadow-lg"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <p className="px-2 pt-1 pb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Where should we come?
+              </p>
+              <div className="space-y-4">
+                {WORKING_AREA_GROUPS.map((group) => (
+                  <div key={group.label} role="group" aria-label={group.label}>
+                    <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                      {group.label}
+                    </p>
+                    <ul className="space-y-0.5">
+                      {group.areas.map((area) => {
+                        const active = data.workingArea === area;
+                        return (
+                          <li key={area}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={active}
+                              onClick={() => applyArea(area)}
+                              className={cn(
+                                "w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium transition-colors",
+                                active
+                                  ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/80"
+                                  : "text-neutral-800 hover:bg-neutral-50",
+                              )}
+                            >
+                              <MapPin className="w-4 h-4 shrink-0 text-neutral-400" />
+                              <span className="min-w-0 flex-1">{area}</span>
+                              {active && <Check className="w-4 h-4 shrink-0 text-emerald-600" />}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+          {errors.workingArea && (
+            <p className="text-[10px] text-red-500 mt-1">{errors.workingArea}</p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <span className="block text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-2">
+          Address <span className="text-red-500">*</span>
+        </span>
+        <textarea
+          value={data.address}
+          onChange={(e) =>
+            setData((prev) => ({
+              ...prev,
+              address: e.target.value,
+            }))
+          }
+          placeholder="Street, suburb, city, postal code"
+          rows={2}
+          className={`w-full px-4 py-3 rounded-xl border text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 resize-y min-h-[72px] ${
+            errors.address ? "border-red-400 bg-red-50" : "border-neutral-200 bg-white"
+          }`}
+        />
+        {errors.address && (
+          <p className="text-[10px] text-red-500 mt-1">{errors.address}</p>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center gap-1.5 mb-3">
+          <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider">
+            Property type
+          </span>
+          <span
+            className="relative group inline-flex items-center"
+            aria-label="Property type info"
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 cursor-pointer" />
+            <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+              Home, apartment, or office — we tailor the clean to your space.
+            </span>
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2 rounded-xl bg-neutral-100 p-1.5">
+          {[
+            { id: "apartment" as const, label: "Apartment", icon: <Building className="w-4 h-4" /> },
+            { id: "house" as const, label: "House", icon: <Home className="w-4 h-4" /> },
+            { id: "office" as const, label: "Office", icon: <Building2 className="w-4 h-4" /> },
+          ].map((item) => {
+            const selected = data.propertyType === item.id;
             return (
               <button
-                key={s.id}
+                key={item.id}
                 type="button"
-                onClick={() => {
-                  setData((prev) => {
-                    const isHomeService =
-                      prev.propertyType !== "office" && s.id !== "carpet";
-                    const isServiceChange = prev.service !== s.id;
-
-                    return {
-                      ...prev,
-                      service: s.id,
-                      cleanerId: "",
-                      teamId: "",
-                      ...(isHomeService && isServiceChange
-                        ? {
-                            bedrooms: 2,
-                            bathrooms: 1,
-                            extraRooms: 0,
-                          }
-                        : {}),
-                    };
-                  });
-                }}
-                className={`w-full aspect-square rounded-2xl border bg-white px-2 py-2 shadow-sm transition-all flex flex-col gap-1.5 items-center text-center sm:aspect-auto sm:min-h-[110px] sm:px-4 sm:py-3 sm:gap-2 sm:items-start sm:text-left ${
+                onClick={() =>
+                  setData((prev) => ({
+                    ...prev,
+                    propertyType: item.id,
+                    officeSize: item.id === "office" ? prev.officeSize : "",
+                  }))
+                }
+                className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all flex-1 min-w-[100px] sm:flex-none ${
                   selected
-                    ? "border-blue-500 shadow-md"
-                    : "border-slate-200 hover:shadow-md hover:border-slate-300"
+                    ? "bg-neutral-900 text-white shadow-sm"
+                    : "text-neutral-600 hover:text-neutral-900 hover:bg-white/80"
                 }`}
               >
-                <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0 sm:w-12 sm:h-12">
-                    <div className="w-5 h-5 text-blue-600">{s.icon}</div>
-                  </div>
-                  <h4 className="font-semibold text-slate-900 text-[11px] leading-tight break-words flex-1 min-w-0 sm:text-sm">
-                    {s.id === "standard" && (
-                      <span className="flex flex-col">
-                        <span>Standard</span>
-                        <span>Cleaning</span>
-                      </span>
-                    )}
-                    {s.id === "deep" && (
-                      <span className="flex flex-col">
-                        <span>Deep</span>
-                        <span>Cleaning</span>
-                      </span>
-                    )}
-                    {s.id === "move" && (
-                      <span className="flex flex-col">
-                        <span>Moving</span>
-                        <span>Cleaning</span>
-                      </span>
-                    )}
-                    {s.id === "airbnb" && (
-                      <span className="flex flex-col">
-                        <span>Airbnb</span>
-                        <span>Cleaning</span>
-                      </span>
-                    )}
-                    {s.id === "carpet" && (
-                      <span className="flex flex-col">
-                        <span>Carpet</span>
-                        <span>Cleaning</span>
-                      </span>
-                    )}
-                  </h4>
-                </div>
-                <p className="hidden text-[11px] text-slate-500 leading-snug break-words sm:block">
-                  {s.description}
-                </p>
-                <p className="hidden text-xs font-bold text-blue-600 sm:block">
-                  From R{displayPrice}
-                </p>
+                <span className={selected ? "text-[#86EFAC]" : "text-neutral-500"}>{item.icon}</span>
+                {item.label}
               </button>
             );
           })}
         </div>
       </div>
 
-      <div>
-        <SectionHeader>2. Property type & location</SectionHeader>
-        <div className="space-y-6">
-          {/* Property type + location aligned horizontally */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <FieldLabel required>Property Type</FieldLabel>
-                <span
-                  className="relative group inline-flex items-center"
-                  aria-label="Property type info"
-                >
-                  <AlertCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 cursor-pointer" />
-                  <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                    Home, apartment, or office—we tailor the clean to your space.
-                  </span>
-                </span>
-              </div>
-              <div className="flex flex-row gap-2 rounded-2xl bg-slate-50 p-1">
-                {[
-                  { id: "apartment", label: "Apartment", icon: <Building className="w-5 h-5" /> },
-                  { id: "house", label: "House", icon: <Home className="w-5 h-5" /> },
-                  { id: "office", label: "Office", icon: <Building2 className="w-5 h-5" /> },
-                ].map((item) => {
-                  const selected = data.propertyType === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() =>
-                        setData((prev) => ({
-                          ...prev,
-                          propertyType: item.id as PropertyType,
-                          officeSize:
-                            item.id === "office" ? prev.officeSize : "",
-                        }))
-                      }
-                      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all flex-1 ${
-                        selected
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-500 hover:text-slate-900 hover:bg-white/70"
-                      }`}
-                    >
-                      <span className={selected ? "text-blue-600" : "text-slate-500"}>{item.icon}</span>
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-1.5">
-                <FieldLabel required>Your location</FieldLabel>
-                <span
-                  className="relative group inline-flex items-center"
-                  aria-label="Location info"
-                >
-                  <AlertCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 cursor-pointer" />
-                  <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                    We use this to match you with cleaners in your area.
-                  </span>
-                </span>
-              </div>
-              <div className="relative">
-                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <Home className="w-4 h-4" />
-                </div>
-                <select
-                  value={data.workingArea}
-                  onChange={(e) =>
-                    setData((prev) => ({
-                      ...prev,
-                      workingArea: e.target.value,
-                      cleanerId: "",
-                      teamId: "",
-                    }))
-                  }
-                  className={`w-full pl-9 pr-8 py-3 bg-white border rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none ${
-                    errors.workingArea ? "border-red-400 bg-red-50" : "border-slate-200"
-                  }`}
-                >
-                  <option value="">Select an area</option>
-                  {WORKING_AREAS.map((area) => (
-                    <option key={area} value={area}>
-                      {area}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              </div>
-              {errors.workingArea && (
-                <p className="text-[10px] text-red-500 mt-1 ml-1 font-medium">{errors.workingArea}</p>
-              )}
-            </div>
-          </div>
+      <div className="space-y-6">
 
           {/* Office configuration & scale (only for office properties) */}
           {data.propertyType === "office" && (
@@ -1162,86 +1546,37 @@ const Step1Plan = ({
                     </span>
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                        <DoorClosed className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <span className="font-semibold text-sm text-slate-900">
-                        Private Offices
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setData((prev) => ({
-                            ...prev,
-                            privateOffices: Math.max(0, prev.privateOffices - 1),
-                          }))
-                        }
-                        className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm"
-                      >
-                        <Minus className="w-3.5 h-3.5 text-slate-700" />
-                      </button>
-                      <span className="text-base font-black text-slate-900 w-5 text-center">
-                        {data.privateOffices}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setData((prev) => ({
-                            ...prev,
-                            privateOffices: Math.min(20, prev.privateOffices + 1),
-                          }))
-                        }
-                        className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-slate-700" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                        <Users className="w-4 h-4 text-purple-500" />
-                      </div>
-                      <span className="font-semibold text-sm text-slate-900">
-                        Meeting Rooms
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setData((prev) => ({
-                            ...prev,
-                            meetingRooms: Math.max(0, prev.meetingRooms - 1),
-                          }))
-                        }
-                        className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm"
-                      >
-                        <Minus className="w-3.5 h-3.5 text-slate-700" />
-                      </button>
-                      <span className="text-base font-black text-slate-900 w-5 text-center">
-                        {data.meetingRooms}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setData((prev) => ({
-                            ...prev,
-                            meetingRooms: Math.min(20, prev.meetingRooms + 1),
-                          }))
-                        }
-                        className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-slate-700" />
-                      </button>
-                    </div>
-                  </div>
+                <div className="rounded-xl border border-neutral-200 bg-white grid grid-cols-2 divide-x divide-neutral-100">
+                  <Step1CounterRow
+                    layout="column"
+                    icon={<DoorClosed className="w-5 h-5" />}
+                    label="Private offices"
+                    sub="Enclosed workspaces"
+                    value={data.privateOffices}
+                    onChange={(v) =>
+                      setData((prev) => ({
+                        ...prev,
+                        privateOffices: v,
+                      }))
+                    }
+                    min={0}
+                    max={20}
+                  />
+                  <Step1CounterRow
+                    layout="column"
+                    icon={<Users className="w-5 h-5" />}
+                    label="Meeting rooms"
+                    sub="Conference spaces"
+                    value={data.meetingRooms}
+                    onChange={(v) =>
+                      setData((prev) => ({
+                        ...prev,
+                        meetingRooms: v,
+                      }))
+                    }
+                    min={0}
+                    max={20}
+                  />
                 </div>
               </div>
 
@@ -1277,10 +1612,10 @@ const Step1Plan = ({
                             officeSize: option.id as OfficeScale,
                           }))
                         }
-                        className={`px-5 py-2.5 rounded-2xl text-xs font-semibold tracking-wide uppercase transition-all ${
+                        className={`px-5 py-2.5 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all ${
                           selected
-                            ? "bg-blue-600 text-white shadow-sm"
-                            : "bg-slate-50 text-slate-500 border border-slate-200 hover:bg-white"
+                            ? "bg-neutral-900 text-white shadow-sm"
+                            : "bg-white text-neutral-500 border border-neutral-200 hover:bg-neutral-50"
                         }`}
                       >
                         {option.label}
@@ -1292,13 +1627,15 @@ const Step1Plan = ({
             </div>
           )}
 
-          {/* Rooms counters - only for apartment/house and not for carpet service */}
+          {/* Home size — apartment / house only */}
           {(data.service !== "carpet" &&
             (data.propertyType === "apartment" || data.propertyType === "house")) && (
             <div>
-              <FieldLabel>Rooms</FieldLabel>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <CounterRow
+              <h3 className="text-base font-bold text-neutral-900 mb-3">Home size</h3>
+              <div className="rounded-xl border border-neutral-200 bg-white grid grid-cols-3 divide-x divide-neutral-100">
+                <Step1CounterRow
+                  layout="column"
+                  icon={<Bed className="w-5 h-5" />}
                   label="Bedrooms"
                   sub="Sleeping areas"
                   value={data.bedrooms}
@@ -1311,9 +1648,11 @@ const Step1Plan = ({
                   min={1}
                   max={10}
                 />
-                <CounterRow
+                <Step1CounterRow
+                  layout="column"
+                  icon={<Bath className="w-5 h-5" />}
                   label="Bathrooms"
-                  sub="Incl. ensuites"
+                  sub="Including ensuites"
                   value={data.bathrooms}
                   onChange={(v) =>
                     setData((prev) => ({
@@ -1324,8 +1663,10 @@ const Step1Plan = ({
                   min={1}
                   max={8}
                 />
-                <CounterRow
-                  label="Extra Rooms"
+                <Step1CounterRow
+                  layout="column"
+                  icon={<LayoutGrid className="w-5 h-5" />}
+                  label="Extra rooms"
                   sub="Study, loft, etc."
                   value={data.extraRooms}
                   onChange={(v) =>
@@ -1340,14 +1681,14 @@ const Step1Plan = ({
               </div>
             </div>
           )}
-        </div>
       </div>
 
       {data.service === "carpet" && (
         <div>
-          <SectionHeader>CARPET DETAILS</SectionHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <CounterRow
+          <h3 className="text-base font-bold text-neutral-900 mb-3">Carpet details</h3>
+          <div className="rounded-xl border border-neutral-200 bg-white px-4 sm:px-5">
+            <Step1CounterRow
+              icon={<LayoutGrid className="w-5 h-5" />}
               label="Rooms"
               sub="Main carpeted areas"
               value={data.carpetedRooms}
@@ -1357,8 +1698,9 @@ const Step1Plan = ({
               min={0}
               max={20}
             />
-            <CounterRow
-              label="Loose Rugs"
+            <Step1CounterRow
+              icon={<Layers className="w-5 h-5" />}
+              label="Loose rugs"
               sub="Rugs and runners"
               value={data.looseRugs}
               onChange={(v) =>
@@ -1367,9 +1709,10 @@ const Step1Plan = ({
               min={0}
               max={20}
             />
-            <CounterRow
+            <Step1CounterRow
+              icon={<Users className="w-5 h-5" />}
               label="Extra cleaner"
-              sub="Extra carpet cleaner"
+              sub="Additional carpet cleaner"
               value={data.carpetExtraCleaners}
               onChange={(v) =>
                 setData((prev) => ({ ...prev, carpetExtraCleaners: v }))
@@ -1381,81 +1724,445 @@ const Step1Plan = ({
         </div>
       )}
 
-      <div>
-        <SectionHeader>3. Optional add-ons</SectionHeader>
-        <div className="grid grid-cols-4 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
-          {getExtrasForService(data.service).map((extra) => {
-            const isQuantityEnabled = QUANTITY_ENABLED_EXTRAS.has(extra.id);
-            const quantity = data.extras.filter((id) => id === extra.id).length;
-            const selected = quantity > 0;
-            const overridesForExtras =
-              pricingState.extrasByService[data.service] ?? {};
-            const displayExtraPrice =
-              overridesForExtras[extra.id] ?? extra.price;
-            return (
-              <div
-                key={extra.id}
-                onClick={() => {
-                  if (isQuantityEnabled) {
-                    const currentQty = Math.max(1, quantity || 1);
-                    setQuantityModalExtra(extra);
-                    setQuantityModalValue(currentQty);
-                  } else {
-                    setData((prev) => ({
-                      ...prev,
-                      extras: prev.extras.includes(extra.id)
-                        ? prev.extras.filter((e) => e !== extra.id)
-                        : [...prev.extras, extra.id],
-                    }));
+      {/* Equipment + extra cleaner — not shown for Deep, Move-in/out, or Carpet */}
+      {isHomeStyleService && (
+      <div
+        className="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-10"
+      >
+        <div>
+          <p className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-3">
+            Equipment
+          </p>
+          <RadioGroup
+            value={data.equipmentMode === "shalean" ? "yes" : "no"}
+            onValueChange={(v) =>
+              setData((prev) => ({
+                ...prev,
+                equipmentMode: v === "yes" ? "shalean" : "customer",
+              }))
+            }
+            className="flex flex-col gap-2"
+          >
+            <label
+              htmlFor="booking-equipment-yes"
+              className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
+            >
+              <RadioGroupItem value="yes" id="booking-equipment-yes" className="mt-0.5 shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-neutral-900">Yes</span>
+                <span className="block text-xs text-neutral-500 mt-0.5 leading-snug">
+                  We bring supplies and eco-certified products
+                </span>
+              </span>
+            </label>
+            <label
+              htmlFor="booking-equipment-no"
+              className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
+            >
+              <RadioGroupItem value="no" id="booking-equipment-no" className="mt-0.5 shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-neutral-900">No</span>
+                <span className="block text-xs text-neutral-500 mt-0.5 leading-snug">
+                  You provide detergents and equipment
+                </span>
+              </span>
+            </label>
+          </RadioGroup>
+        </div>
+
+        {extraCleanerMeta && (
+          <div>
+            <p className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-3">
+              Extra cleaner
+            </p>
+            <RadioGroup
+              value={hasHomeExtraCleaner ? "yes" : "no"}
+              onValueChange={(v) => {
+                setData((prev) => {
+                  const without = prev.extras.filter((e) => e !== "extra_cleaner");
+                  if (v === "yes") {
+                    return { ...prev, extras: [...without, "extra_cleaner"] };
                   }
-                }}
-                className={`group relative w-full aspect-square rounded-2xl border bg-white px-2 py-2 shadow-sm flex flex-col items-center gap-1.5 cursor-pointer transition-all text-center sm:justify-center ${
-                  selected
-                    ? "border-blue-500 shadow-md"
-                    : "border-slate-200 hover:border-slate-300 hover:shadow-md"
-                } ${selected ? "sm:text-blue-700" : "text-slate-600 hover:text-blue-700"}`}
+                  return { ...prev, extras: without };
+                });
+              }}
+              className="flex flex-col gap-2"
+            >
+              <label
+                htmlFor="booking-extra-cleaner-no"
+                className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
               >
-                {extra.recommended && (
-                  <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[9px] font-bold uppercase tracking-wide text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
+                <RadioGroupItem value="no" id="booking-extra-cleaner-no" className="mt-0.5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-neutral-900">No</span>
+                  <span className="block text-xs text-neutral-500 mt-0.5 leading-snug">
+                    Base team only
+                  </span>
+                </span>
+              </label>
+              <label
+                htmlFor="booking-extra-cleaner-yes"
+                className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
+              >
+                <RadioGroupItem value="yes" id="booking-extra-cleaner-yes" className="mt-0.5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-neutral-900">Yes</span>
+                  <span className="block text-xs text-neutral-500 mt-0.5 leading-snug">
+                    {extraCleanerMeta.description}
+                    {extraCleanerDisplayPrice > 0 && (
+                      <span className="text-neutral-600 font-medium">
+                        {" "}
+                        (+R{extraCleanerDisplayPrice})
+                      </span>
+                    )}
+                  </span>
+                </span>
+              </label>
+            </RadioGroup>
+          </div>
+        )}
+      </div>
+      )}
+
+      <div>
+        <p className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider mb-3">
+          Frequency
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+          {(
+            [
+              {
+                id: "once" as const,
+                title: "One-time",
+                sub: "Single visit",
+                discount: null as string | null,
+                popular: false,
+              },
+              {
+                id: "weekly" as const,
+                title: "Weekly",
+                sub: "Same day each week",
+                discount: `${weeklyPct}% off`,
+                popular: true,
+              },
+              {
+                id: "bi_weekly" as const,
+                title: "Bi-weekly",
+                sub: "Every two weeks",
+                discount: `${biPct}% off`,
+                popular: false,
+              },
+              {
+                id: "monthly" as const,
+                title: "Monthly",
+                sub: "Once a month",
+                discount: `${monthlyPct}% off`,
+                popular: false,
+              },
+              {
+                id: "multi_week" as const,
+                title: "Custom days",
+                sub: "Multiple visits / week",
+                discount: multiWeekPct ? `${multiWeekPct}% off` : null,
+                popular: false,
+              },
+            ] as const
+          ).map((opt) => {
+            const selected = data.cleaningFrequency === opt.id;
+            const freqDisabled =
+              weeklyBiWeeklyDisabledForService &&
+              (opt.id === "weekly" || opt.id === "bi_weekly");
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                disabled={freqDisabled}
+                title={
+                  freqDisabled
+                    ? "Weekly and bi-weekly are not available for deep, move-in/out, or carpet cleaning."
+                    : undefined
+                }
+                onClick={() => {
+                  if (freqDisabled) return;
+                  setData((prev) => {
+                    if (opt.id === "once") {
+                      return {
+                        ...prev,
+                        cleaningFrequency: "once",
+                        cleaningDays: [],
+                      };
+                    }
+                    if (opt.id === "weekly") {
+                      return {
+                        ...prev,
+                        cleaningFrequency: "weekly",
+                        cleaningDays:
+                          prev.date && prev.date.length > 0
+                            ? [getDayOfWeekFromDate(prev.date)]
+                            : [],
+                      };
+                    }
+                    if (opt.id === "bi_weekly") {
+                      return {
+                        ...prev,
+                        cleaningFrequency: "bi_weekly",
+                        cleaningDays: [],
+                      };
+                    }
+                    if (opt.id === "monthly") {
+                      return {
+                        ...prev,
+                        cleaningFrequency: "monthly",
+                        cleaningDays: [],
+                      };
+                    }
+                    return {
+                      ...prev,
+                      cleaningFrequency: "multi_week",
+                    };
+                  });
+                }}
+                className={`relative rounded-xl border px-3 py-3 sm:py-3.5 text-left transition-all ${
+                  freqDisabled
+                    ? "border-neutral-100 bg-neutral-50 opacity-55 cursor-not-allowed"
+                    : selected
+                      ? "border-neutral-900 bg-neutral-900 text-white shadow-md"
+                      : "border-neutral-200 bg-white hover:border-neutral-300"
+                }`}
+              >
+                {opt.popular && (
+                  <span className="absolute -top-1.5 left-2 rounded-full bg-[#86EFAC] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-neutral-900">
                     Popular
                   </span>
                 )}
-                <div
-                  className={`w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0 sm:w-12 sm:h-12 sm:rounded-full sm:border-2 transition-colors ${
-                    selected
-                      ? "text-blue-600 sm:border-blue-600 sm:bg-blue-50"
-                      : "text-blue-600 sm:border-blue-200 sm:bg-white sm:text-blue-500 group-hover:sm:border-blue-500"
+                <span
+                  className={`block text-sm font-bold ${
+                    selected ? "text-white" : "text-neutral-900"
                   }`}
                 >
-                  <div className="w-5 h-5">{extra.icon}</div>
-                </div>
-                <p className="text-[11px] font-semibold text-slate-900 text-center leading-tight break-words flex-1 min-w-0 sm:max-w-[80px] sm:leading-snug sm:whitespace-normal">
-                  {extra.label}
-                </p>
-                <p className="hidden sm:block text-xs font-bold text-blue-600">
-                  +R{displayExtraPrice}
-                </p>
-              </div>
+                  {opt.title}
+                </span>
+                {opt.discount && (
+                  <span
+                    className={`mt-0.5 block text-[11px] font-semibold ${
+                      selected ? "text-[#86EFAC]" : "text-emerald-600"
+                    }`}
+                  >
+                    {opt.id === "once" ? "" : opt.discount}
+                  </span>
+                )}
+                <span
+                  className={`mt-1 block text-[10px] leading-snug ${
+                    selected ? "text-white/70" : "text-neutral-500"
+                  }`}
+                >
+                  {opt.sub}
+                </span>
+              </button>
             );
           })}
         </div>
+
+        {data.cleaningFrequency === "multi_week" && (
+          <div className="mt-4">
+            <p className="text-[11px] text-neutral-500 mb-2">
+              Choose which days you&apos;d like your clean. Your first visit date is set in Schedule.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => {
+                const typedDay = day as DayOfWeek;
+                const selected = data.cleaningDays.includes(typedDay);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() =>
+                      setData((prev) => ({
+                        ...prev,
+                        cleaningDays: selected
+                          ? prev.cleaningDays.filter((d) => d !== typedDay)
+                          : [...prev.cleaningDays, typedDay],
+                      }))
+                    }
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all ${
+                      selected
+                        ? "bg-neutral-900 text-white border-neutral-900"
+                        : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
+    </div>
+  );
+};
+
+// ─── STEP 2: PREFERENCES (Add-ons) ────────────────────────────────────────────
+
+function Step2Preferences({
+  data,
+  setData,
+  pricingState,
+}: {
+  data: BookingFormData;
+  setData: React.Dispatch<React.SetStateAction<BookingFormData>>;
+  pricingState: ServicePricingState;
+}) {
+  const [quantityModalExtra, setQuantityModalExtra] = useState<Extra | null>(
+    null
+  );
+  const [quantityModalValue, setQuantityModalValue] = useState(1);
+
+  const setExtraQuantity = useCallback(
+    (id: string, quantity: number) => {
+      const clamped = Math.max(0, Math.min(20, quantity));
+      setData((prev) => {
+        const withoutId = prev.extras.filter((e) => e !== id);
+        if (clamped <= 0) {
+          return { ...prev, extras: withoutId };
+        }
+        return {
+          ...prev,
+          extras: [...withoutId, ...Array(clamped).fill(id)],
+        };
+      });
+    },
+    [setData]
+  );
+
+  const overridesForExtras = pricingState.extrasByService[data.service] ?? {};
+  const extrasList = getExtrasForService(data.service).filter(
+    (e) => e.id !== "extra_cleaner"
+  );
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+          Book your clean
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+          Complete your booking
+        </h2>
+        <div className="mt-8">
+          <h3 className="text-base font-bold text-neutral-900">Preferences</h3>
+          <p className="text-sm text-neutral-500 mt-1 max-w-xl">
+            Select any add-on extras for your clean. Skip this step if you only
+            need the base service.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {extrasList.map((extra) => {
+          const isQuantityEnabled = QUANTITY_ENABLED_EXTRAS.has(extra.id);
+          const quantity = data.extras.filter((id) => id === extra.id).length;
+          const selected = quantity > 0;
+          const displayExtraPrice = overridesForExtras[extra.id] ?? extra.price;
+
+          return (
+            <button
+              key={extra.id}
+              type="button"
+              onClick={() => {
+                if (isQuantityEnabled) {
+                  const currentQty = Math.max(1, quantity || 1);
+                  setQuantityModalExtra(extra);
+                  setQuantityModalValue(currentQty);
+                } else {
+                  setData((prev) => ({
+                    ...prev,
+                    extras: prev.extras.includes(extra.id)
+                      ? prev.extras.filter((e) => e !== extra.id)
+                      : [...prev.extras, extra.id],
+                  }));
+                }
+              }}
+              className={`relative flex w-full text-left items-start gap-3 rounded-xl border p-4 transition-all min-h-[5.5rem] ${
+                selected
+                  ? "border-neutral-900 bg-neutral-900 text-white shadow-md ring-1 ring-neutral-900/10"
+                  : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/80"
+              }`}
+            >
+              {extra.recommended && (
+                <span
+                  className={`absolute -top-2 right-3 text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                    selected
+                      ? "bg-[#86EFAC] text-neutral-900"
+                      : "text-amber-900 bg-amber-100"
+                  }`}
+                >
+                  Popular
+                </span>
+              )}
+              <div
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
+                  selected ? "bg-white/10 text-[#86EFAC]" : "bg-neutral-100 text-neutral-700"
+                }`}
+              >
+                <span className="[&_svg]:h-5 [&_svg]:w-5">{extra.icon}</span>
+              </div>
+              <div className="min-w-0 flex-1 pr-2">
+                <p
+                  className={`text-sm font-bold leading-snug ${
+                    selected ? "text-white" : "text-neutral-900"
+                  }`}
+                >
+                  {extra.label}
+                </p>
+                {extra.description && (
+                  <p
+                    className={`mt-0.5 text-xs leading-relaxed ${
+                      selected ? "text-white/75" : "text-neutral-500"
+                    }`}
+                  >
+                    {extra.description}
+                  </p>
+                )}
+                {isQuantityEnabled && selected && quantity > 1 && (
+                  <p
+                    className={`mt-1.5 text-[11px] font-semibold tabular-nums ${
+                      selected ? "text-[#86EFAC]" : "text-emerald-700"
+                    }`}
+                  >
+                    ×{quantity} · R{displayExtraPrice * quantity}
+                  </p>
+                )}
+              </div>
+              <div className="shrink-0 self-center">
+                <span
+                  className={`text-sm font-black tabular-nums whitespace-nowrap ${
+                    selected ? "text-[#86EFAC]" : "text-emerald-600"
+                  }`}
+                >
+                  +R{displayExtraPrice}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
       {quantityModalExtra && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4">
           <div
             className="absolute inset-0"
             onClick={() => setQuantityModalExtra(null)}
+            aria-hidden
           />
           <div className="relative z-50 w-full max-w-sm rounded-2xl bg-white shadow-xl border border-slate-200 p-5 space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  {quantityModalExtra.label}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Choose how many you need for this extra.
-                </p>
-              </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                {quantityModalExtra.label}
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Choose how many you need for this extra.
+              </p>
             </div>
             <div className="flex items-center justify-center gap-3 mt-2">
               <button
@@ -1463,7 +2170,7 @@ const Step1Plan = ({
                 onClick={() =>
                   setQuantityModalValue((prev) => Math.max(0, prev - 1))
                 }
-                className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-neutral-400"
               >
                 <Minus className="w-4 h-4" />
               </button>
@@ -1475,15 +2182,21 @@ const Step1Plan = ({
                 onClick={() =>
                   setQuantityModalValue((prev) => Math.min(20, prev + 1))
                 }
-                className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-neutral-400"
               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span>Price per unit: R{quantityModalExtra.price}</span>
+              <span>
+                Price per unit: R
+                {overridesForExtras[quantityModalExtra.id] ??
+                  quantityModalExtra.price}
+              </span>
               <span className="font-semibold text-slate-700">
-                Total: R{quantityModalExtra.price * Math.max(0, quantityModalValue)}
+                Total: R
+                {(overridesForExtras[quantityModalExtra.id] ??
+                  quantityModalExtra.price) * Math.max(0, quantityModalValue)}
               </span>
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -1505,7 +2218,7 @@ const Step1Plan = ({
                   }
                   setQuantityModalExtra(null);
                 }}
-                className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-neutral-900 text-white hover:bg-neutral-800"
               >
                 Save
               </button>
@@ -1515,25 +2228,159 @@ const Step1Plan = ({
       )}
     </div>
   );
-};
+}
 
-// ─── STEP 2: SCHEDULE (Schedule + Extras) ───────────────────────────────────
+// ─── STEP 3: SCHEDULE (date, time, promo) ─────────────────────────────────
+
+type ScheduleTipPreset = "none" | "p10" | "p15" | "p20" | "custom";
+
+function BookingTipBlock({
+  data,
+  setData,
+  pricing,
+}: {
+  data: BookingFormData;
+  setData: React.Dispatch<React.SetStateAction<BookingFormData>>;
+  pricing: ReturnType<typeof useCalcTotal>;
+}) {
+  const tipBase = Math.max(
+    0,
+    pricing.afterAreaSubtotal - pricing.discountAmount
+  );
+
+  const [tipPreset, setTipPreset] = useState<ScheduleTipPreset>(() =>
+    data.tipAmount > 0 ? "custom" : "none"
+  );
+  const [customTipInput, setCustomTipInput] = useState(() =>
+    data.tipAmount > 0 ? String(data.tipAmount) : ""
+  );
+
+  useEffect(() => {
+    if (tipPreset === "custom") return;
+    if (tipPreset === "none") {
+      setData((prev) =>
+        prev.tipAmount === 0 ? prev : { ...prev, tipAmount: 0 }
+      );
+      return;
+    }
+    const pct =
+      tipPreset === "p10" ? 10 : tipPreset === "p15" ? 15 : 20;
+    const nextTip = Math.round((tipBase * pct) / 100);
+    setData((prev) =>
+      prev.tipAmount === nextTip ? prev : { ...prev, tipAmount: nextTip }
+    );
+  }, [tipBase, tipPreset, setData]);
+
+  return (
+    <div className="border-t border-neutral-100 pt-8 space-y-3">
+      <div className="flex items-center gap-2">
+        <Heart className="w-3.5 h-3.5 text-teal-600" aria-hidden />
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-neutral-900">
+          Tip for your cleaner
+        </span>
+      </div>
+      <p className="text-[12px] text-neutral-500">
+        100% of your tip goes directly to your cleaner. It&apos;s always appreciated.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "none" as const, label: "No tip" },
+            { id: "p10" as const, label: "10%" },
+            { id: "p15" as const, label: "15%" },
+            { id: "p20" as const, label: "20%" },
+          ] as const
+        ).map(({ id, label }) => {
+          const selected = tipPreset === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setTipPreset(id);
+                setCustomTipInput("");
+              }}
+              className={`px-4 py-2.5 rounded-full text-xs font-bold border transition-all ${
+                selected
+                  ? "bg-neutral-900 text-white border-neutral-900"
+                  : "bg-neutral-100 text-neutral-600 border-transparent hover:border-neutral-200"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            setTipPreset("custom");
+            setCustomTipInput(
+              data.tipAmount > 0 ? String(data.tipAmount) : ""
+            );
+          }}
+          className={`px-4 py-2.5 rounded-full text-xs font-bold border transition-all ${
+            tipPreset === "custom"
+              ? "bg-neutral-900 text-white border-neutral-900"
+              : "bg-neutral-100 text-neutral-600 border-transparent hover:border-neutral-200"
+          }`}
+        >
+          Custom
+        </button>
+      </div>
+      {tipPreset === "custom" && (
+        <div className="max-w-xs pt-1">
+          <label className="text-[10px] font-medium text-neutral-500 ml-0.5">
+            Amount (ZAR)
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={10}
+            value={customTipInput}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setCustomTipInput(raw);
+              const parsed = Number(raw);
+              if (!Number.isNaN(parsed) && parsed >= 0) {
+                setData((prev) => ({
+                  ...prev,
+                  tipAmount: parsed,
+                }));
+              }
+            }}
+            placeholder="e.g. 75"
+            className="mt-1 w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-semibold text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/15 focus:border-neutral-400"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Step2Schedule({
   data,
   setData,
+  pricing,
 }: {
   data: BookingFormData;
   setData: React.Dispatch<React.SetStateAction<BookingFormData>>;
+  pricing: ReturnType<typeof useCalcTotal>;
 }) {
-  const timeSlots = useMemo(
-    () => generateTimeSlots(7, 12, 30),
-    []
-  );
+  const fallbackSlots = useMemo(() => generateTimeSlots(7, 18, 30), []);
+  const [timeSlots, setTimeSlots] = useState<string[]>(fallbackSlots);
 
   const [availableDates, setAvailableDates] = useState<string[]>(() =>
     getDatesForMonth()
   );
+
+  const [promoInput, setPromoInput] = useState(data.promoCode);
+  const [promoMsg, setPromoMsg] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [applyingPromo, setApplyingPromo] = useState(false);
+  const [dateSheetOpen, setDateSheetOpen] = useState(false);
+  const [timeSheetOpen, setTimeSheetOpen] = useState(false);
 
   useEffect(() => {
     const updateDates = () => setAvailableDates(getDatesForMonth());
@@ -1573,489 +2420,344 @@ function Step2Schedule({
     });
   }, [availableDates, setData]);
 
-  const toggleExtra = (id: string) => {
+  useEffect(() => {
+    if (!data.date) return;
+    const ac = new AbortController();
+    fetch(
+      `/api/booking/available-slots?date=${encodeURIComponent(data.date)}`,
+      { signal: ac.signal }
+    )
+      .then((r) => r.json())
+      .then((j: { slots?: string[] }) => {
+        if (Array.isArray(j.slots) && j.slots.length > 0) {
+          setTimeSlots(j.slots);
+        } else {
+          setTimeSlots(fallbackSlots);
+        }
+      })
+      .catch(() => setTimeSlots(fallbackSlots));
+    return () => ac.abort();
+  }, [data.date, fallbackSlots]);
+
+  useEffect(() => {
+    if (!timeSlots.length) return;
+    setData((prev) => {
+      if (prev.time && timeSlots.includes(prev.time)) return prev;
+      return { ...prev, time: timeSlots[0] ?? prev.time };
+    });
+  }, [timeSlots, setData]);
+
+  const applyDateChange = (dateStr: string) => {
+    let nextDate = dateStr;
+    if (!availableDates.includes(dateStr)) {
+      const sorted = [...availableDates].sort();
+      const fallback =
+        sorted.find((d) => d >= dateStr) ?? sorted[sorted.length - 1];
+      nextDate = fallback;
+    }
     setData((prev) => ({
       ...prev,
-      extras: prev.extras.includes(id)
-        ? prev.extras.filter((e) => e !== id)
-        : [...prev.extras, id],
+      date: nextDate,
+      cleaningDays:
+        prev.cleaningFrequency === "weekly"
+          ? [getDayOfWeekFromDate(nextDate)]
+          : prev.cleaningFrequency === "multi_week" && prev.cleaningDays.length === 0
+            ? [getDayOfWeekFromDate(nextDate)]
+            : prev.cleaningDays,
     }));
   };
 
-  const [visibleStart, setVisibleStart] = useState(0);
-  const [showAllMobileDates, setShowAllMobileDates] = useState(false);
-  const [mobileCalendarPage, setMobileCalendarPage] = useState(0);
+  const applyPromo = async () => {
+    const code = promoInput.toUpperCase().trim();
+    if (!code) {
+      setData((prev) => ({
+        ...prev,
+        promoCode: "",
+        appliedPromoDiscount: 0,
+      }));
+      setPromoMsg(null);
+      return;
+    }
+    setApplyingPromo(true);
+    try {
+      const res = await fetch("/api/promos/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          serviceType: data.service,
+          subtotal: pricing.afterAreaSubtotal,
+        }),
+      });
+      const json = (await res.json()) as {
+        valid?: boolean;
+        discountAmount?: number;
+        reason?: string;
+      };
+      if (json.valid && json.discountAmount && json.discountAmount > 0) {
+        setData((prev) => ({
+          ...prev,
+          promoCode: code,
+          appliedPromoDiscount: json.discountAmount ?? 0,
+        }));
+        setPromoMsg({
+          text: `R${json.discountAmount} discount applied.`,
+          type: "success",
+        });
+      } else {
+        setData((prev) => ({
+          ...prev,
+          promoCode: "",
+          appliedPromoDiscount: 0,
+        }));
+        setPromoMsg({
+          text: json.reason || "Invalid or expired promo code.",
+          type: "error",
+        });
+      }
+    } catch {
+      setPromoMsg({
+        text: "Could not validate code. Try again.",
+        type: "error",
+      });
+    } finally {
+      setApplyingPromo(false);
+    }
+  };
 
-  const maxVisibleStart = Math.max(0, availableDates.length - 7);
+  const dateMin = availableDates[0] ?? "";
+  const dateMax = availableDates[availableDates.length - 1] ?? "";
 
-  const visibleDates = useMemo(
-    () => availableDates.slice(visibleStart, visibleStart + 7),
-    [availableDates, visibleStart]
-  );
-
-  const mobileMonthBlocks = useMemo(
-    () => getMonthBlocksFromDates(availableDates),
-    [availableDates]
-  );
-
-  const mobileDateChunksPage0 = useMemo(
-    () => mobileMonthBlocks.slice(0, 3),
-    [mobileMonthBlocks]
-  );
-  const mobileDateChunksPage1 = useMemo(
-    () => mobileMonthBlocks.slice(3, 5),
-    [mobileMonthBlocks]
-  );
-  const hasNextMobilePage = mobileDateChunksPage1.length > 0;
-  const mobileDateChunks = mobileCalendarPage === 0 ? mobileDateChunksPage0 : mobileDateChunksPage1;
-
-  const selectedDateLabel = data.date ? formatDate(data.date) : "";
-
-  const monthYearLabel = useMemo(() => {
-    const sourceDateStr = data.date || visibleDates[0];
-    if (!sourceDateStr) return "";
-    const d = new Date(sourceDateStr + "T00:00:00");
-    return d.toLocaleDateString("en-ZA", {
-      month: "long",
-      year: "numeric",
-    });
-  }, [data.date, visibleDates]);
+  const fieldShell =
+    "flex items-center gap-3 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-neutral-900/10 focus-within:border-neutral-900/30 transition-all";
 
   return (
-    <div className="space-y-6">
-      <StepTitle subtitle="Pick the date and time that work best for you.">
-        When &amp; What Time
-      </StepTitle>
+    <div className="space-y-8">
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-teal-600 mb-2">
+          Book your clean
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+          Complete your booking
+        </h2>
+        <p className="mt-2 text-sm text-neutral-500 max-w-xl">
+          Pick your arrival time and apply any promo codes.
+        </p>
+      </div>
 
-      <div className="space-y-6">
+      <div className="rounded-2xl border border-neutral-200/90 bg-white p-5 sm:p-7 shadow-[0_1px_0_rgba(0,0,0,0.04)] space-y-8">
         <div>
-          <SectionHeader>1. How often do you need cleaning?</SectionHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <SelectionCard
-              selected={data.cleaningFrequency === "once"}
-              onClick={() =>
-                setData((prev) => ({
-                  ...prev,
-                  cleaningFrequency: "once",
-                  cleaningDays: [],
-                }))
-              }
-            >
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-slate-900">Once</span>
-                </div>
-                <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
-                  <li>Book a one-time cleaning session</li>
-                </ul>
-              </div>
-            </SelectionCard>
-
-            <SelectionCard
-              selected={data.cleaningFrequency === "weekly"}
-              onClick={() =>
-                setData((prev) => ({
-                  ...prev,
-                  cleaningFrequency: "weekly",
-                  cleaningDays:
-                    prev.date && prev.date.length > 0
-                      ? [getDayOfWeekFromDate(prev.date)]
-                      : [],
-                }))
-              }
-              className="relative"
-            >
-              <div className="absolute -top-2 left-3 px-1.5 py-0.5 rounded-full bg-orange-500 text-[9px] font-bold uppercase tracking-wider text-white">
-                Popular
-              </div>
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-slate-900">Weekly</span>
-                  <span className="px-2 py-0.5 rounded-full bg-orange-50 text-[10px] font-bold text-orange-600">
-                    10% off per visit
-                  </span>
-                </div>
-                <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
-                  <li>Get the same cleaner each time</li>
-                  <li>Re-schedule easily through the app</li>
-                </ul>
-              </div>
-            </SelectionCard>
-
-            <SelectionCard
-              selected={data.cleaningFrequency === "multi_week"}
-              onClick={() =>
-                setData((prev) => ({
-                  ...prev,
-                  cleaningFrequency: "multi_week",
-                }))
-              }
-            >
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-slate-900">
-                    Multiple times a week
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-orange-50 text-[10px] font-bold text-orange-600">
-                    15% off per visit
-                  </span>
-                </div>
-                <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside">
-                  <li>Get the same cleaner each time</li>
-                  <li>Re-schedule easily through the app</li>
-                </ul>
-              </div>
-            </SelectionCard>
-          </div>
-
-          {data.cleaningFrequency === "multi_week" && (
-            <div className="mt-4">
-              <p className="text-[11px] text-slate-500 mb-2 ml-1">
-                Choose which days of the week you&apos;d like your clean. We&apos;ll use these together with your start date below.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => {
-                  const typedDay = day as DayOfWeek;
-                  const selected = data.cleaningDays.includes(typedDay);
-                  return (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() =>
-                        setData((prev) => ({
-                          ...prev,
-                          cleaningDays: selected
-                            ? prev.cleaningDays.filter((d) => d !== typedDay)
-                            : [...prev.cleaningDays, typedDay],
-                        }))
-                      }
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all ${
-                        selected
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-                      }`}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <h3 className="text-xs font-black uppercase tracking-[0.14em] text-neutral-900">
+            Schedule &amp; payment
+          </h3>
+          <p className="text-[13px] text-neutral-500 mt-1">
+            You can book up to three months in advance.
+          </p>
         </div>
 
-        {/* Date & Time: desktop + mobile (separate layouts) */}
+        <div className="grid gap-5 sm:grid-cols-2 sm:gap-5">
+          <div>
+            <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+              Preferred date
+            </label>
+            <Sheet open={dateSheetOpen} onOpenChange={setDateSheetOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className={`${fieldShell} w-full cursor-pointer text-left transition-colors hover:border-neutral-300`}
+                >
+                  <Calendar className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
+                  <span className="min-w-0 flex-1 text-sm font-semibold text-neutral-900">
+                    {data.date
+                      ? format(parseLocalDate(data.date), "EEE d MMM yyyy")
+                      : "Select date"}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="bottom"
+                className="left-0 right-0 max-h-[88vh] overflow-y-auto rounded-t-[1.25rem] border-0 px-4 pb-6 pt-2 sm:left-auto sm:right-auto sm:mx-auto sm:max-w-lg"
+              >
+                <SheetHeader className="mb-3 space-y-1 pr-8 text-left">
+                  <SheetTitle className="text-base font-black tracking-tight text-neutral-900">
+                    Choose date
+                  </SheetTitle>
+                  <p className="text-[13px] font-medium text-neutral-500">
+                    You can book up to three months in advance.
+                  </p>
+                </SheetHeader>
+                <div className="flex justify-center">
+                  <DatePickerCalendar
+                    mode="single"
+                    selected={data.date ? parseLocalDate(data.date) : undefined}
+                    onSelect={(d) => {
+                      if (d) applyDateChange(formatLocalDate(d));
+                    }}
+                    startMonth={dateMin ? parseLocalDate(dateMin) : undefined}
+                    endMonth={dateMax ? parseLocalDate(dateMax) : undefined}
+                    captionLayout="dropdown"
+                    className="w-full max-w-[340px] rounded-xl border border-neutral-200/90 bg-neutral-50/50 p-2"
+                    classNames={{
+                      selected:
+                        "bg-transparent [&_button]:!bg-neutral-900 [&_button]:!text-white [&_button:hover]:!bg-neutral-800",
+                      today:
+                        "bg-transparent [&_button]:!bg-teal-100 [&_button]:!text-teal-900 [&_button]:!font-semibold",
+                    }}
+                  />
+                </div>
+                <SheetFooter className="mt-6 flex-col gap-0 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setDateSheetOpen(false)}
+                    className="w-full rounded-xl bg-neutral-900 py-3 text-sm font-bold text-white hover:bg-neutral-800"
+                  >
+                    Done
+                  </button>
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
+          </div>
 
-        {/* Mobile Date & Time */}
-        <div className="lg:hidden space-y-3">
-          <SectionHeader>2. Date &amp; Time</SectionHeader>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] text-slate-500 ml-1">
-              Pick any available date and time.
-            </p>
+          <div>
+            <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+              Arrival window
+            </label>
+            <Sheet open={timeSheetOpen} onOpenChange={setTimeSheetOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className={`${fieldShell} w-full cursor-pointer text-left transition-colors hover:border-neutral-300`}
+                >
+                  <Clock className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
+                  <span className="min-w-0 flex-1 text-sm font-semibold text-neutral-900">
+                    {data.time && timeSlots.includes(data.time)
+                      ? formatTimeSlotLabel(data.time)
+                      : "Select time"}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="bottom"
+                className="left-0 right-0 max-h-[88vh] overflow-y-auto rounded-t-[1.25rem] border-0 px-4 pb-6 pt-2 sm:left-auto sm:right-auto sm:mx-auto sm:max-w-lg"
+              >
+                <SheetHeader className="mb-3 space-y-1 pr-8 text-left">
+                  <SheetTitle className="text-base font-black tracking-tight text-neutral-900">
+                    Choose arrival time
+                  </SheetTitle>
+                  <p className="text-[13px] font-medium text-neutral-500">
+                    Times are in 30-minute steps for your selected day.
+                  </p>
+                </SheetHeader>
+                {timeSlots.length === 0 ? (
+                  <p className="text-sm font-medium text-neutral-500">
+                    No slots left for this day. Choose another date.
+                  </p>
+                ) : (
+                  <div className="relative">
+                    <Clock
+                      className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                      aria-hidden
+                    />
+                    <select
+                      value={
+                        data.time && timeSlots.includes(data.time)
+                          ? data.time
+                          : ""
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v) setData((prev) => ({ ...prev, time: v }));
+                      }}
+                      className={cn(
+                        "w-full min-h-[52px] cursor-pointer appearance-none rounded-xl border border-neutral-200 bg-white py-3.5 pl-11 pr-11 text-base font-semibold text-neutral-900 shadow-sm",
+                        "focus:outline-none focus:ring-2 focus:ring-neutral-900/15 focus:border-neutral-400",
+                        "[color-scheme:light]"
+                      )}
+                      aria-label="Arrival time"
+                    >
+                      {!data.time || !timeSlots.includes(data.time) ? (
+                        <option value="" disabled>
+                          Select a time
+                        </option>
+                      ) : null}
+                      {timeSlots.map((slot) => (
+                        <option key={slot} value={slot}>
+                          {formatTimeSlotLabel(slot)}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                      aria-hidden
+                    />
+                  </div>
+                )}
+                <SheetFooter className="mt-6 flex-col gap-0 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setTimeSheetOpen(false)}
+                    className="w-full rounded-xl bg-neutral-900 py-3 text-sm font-bold text-white hover:bg-neutral-800"
+                  >
+                    Done
+                  </button>
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+
+        <div className="border-t border-neutral-100 pt-8 space-y-3">
+          <span className="text-[10px] font-black uppercase tracking-[0.14em] text-neutral-900">
+            Promo code
+          </span>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-stretch max-w-lg">
+            <div className={`${fieldShell} flex-1`}>
+              <Tag className="w-4 h-4 text-neutral-400 shrink-0" aria-hidden />
+              <input
+                type="text"
+                value={promoInput}
+                onChange={(e) => setPromoInput(e.target.value)}
+                placeholder="Enter promo code"
+                className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-neutral-900 placeholder:text-neutral-400 focus:outline-none uppercase"
+              />
+            </div>
             <button
               type="button"
-              onClick={() => {
-                if (!showAllMobileDates) setMobileCalendarPage(0);
-                setShowAllMobileDates((prev) => !prev);
-              }}
-              className="text-[10px] font-semibold text-blue-600 underline-offset-2 hover:underline"
+              onClick={applyPromo}
+              disabled={applyingPromo}
+              className="shrink-0 px-6 py-2.5 bg-neutral-900 text-white text-sm font-bold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
             >
-              {showAllMobileDates ? "View fewer dates" : "View more dates"}
+              {applyingPromo ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : null}
+              Apply
             </button>
           </div>
-
-          {/* Compact 5-day strip (default) */}
-          {!showAllMobileDates && (
-            <div className="mb-1">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {availableDates.slice(0, 5).map((dateStr) => {
-                  const d = new Date(dateStr + "T00:00:00");
-                  const dayName = d.toLocaleDateString("en-ZA", {
-                    weekday: "short",
-                  });
-                  const dayNum = d.getDate();
-                  const selected = data.date === dateStr;
-                  return (
-                    <button
-                      key={dateStr}
-                      type="button"
-                      onClick={() => {
-                        setData((prev) => ({
-                          ...prev,
-                          date: dateStr,
-                          cleaningDays:
-                            prev.cleaningFrequency === "weekly"
-                              ? [getDayOfWeekFromDate(dateStr)]
-                              : prev.cleaningFrequency === "multi_week" &&
-                                prev.cleaningDays.length === 0
-                              ? [getDayOfWeekFromDate(dateStr)]
-                              : prev.cleaningDays,
-                        }));
-                      }}
-                      className={`min-w-[64px] px-3 py-2 rounded-full text-center text-[11px] font-semibold transition-all border-2 flex-shrink-0 ${
-                        selected
-                          ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                          : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50"
-                      }`}
-                    >
-                      <p
-                        className={`text-[9px] font-semibold mb-0.5 ${
-                          selected ? "text-blue-100" : "text-slate-400"
-                        }`}
-                      >
-                        {dayName}
-                      </p>
-                      <p className="text-sm font-black leading-none">{dayNum}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Full month-style grid when expanded (mobile only): first 3 months, then next 2 on arrow */}
-          {showAllMobileDates && (
-            <div className="mt-1 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <button
-                  type="button"
-                  onClick={() => setMobileCalendarPage((p) => Math.max(0, p - 1))}
-                  disabled={mobileCalendarPage === 0}
-                  className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-[11px] font-semibold text-slate-600">
-                  {mobileCalendarPage === 0 ? "Months 1–3" : "Months 4–5"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setMobileCalendarPage((p) => (hasNextMobilePage ? 1 : p))}
-                  disabled={!hasNextMobilePage || mobileCalendarPage === 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-              {mobileDateChunks.map((chunk, idx) => {
-                const firstDateStr = chunk[0];
-                const d0 = new Date(firstDateStr + "T00:00:00");
-                const label = d0.toLocaleDateString("en-ZA", {
-                  month: "long",
-                  year: "numeric",
-                });
-                const leadingBlanks = d0.getDay();
-                return (
-                  <div key={idx} className="space-y-2">
-                    <div className="flex items-center justify-center">
-                      <p className="text-[11px] font-semibold text-slate-700">
-                        {label}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-7 text-[9px] font-semibold text-slate-400 mb-1">
-                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((w) => (
-                        <div key={w} className="text-center">
-                          {w}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-1">
-                      {Array.from({ length: leadingBlanks }, (_, i) => (
-                        <div key={`blank-${i}`} className="h-8" />
-                      ))}
-                      {chunk.map((dateStr) => {
-                        const d = new Date(dateStr + "T00:00:00");
-                        const dayNum = d.getDate();
-                        const selected = data.date === dateStr;
-                        return (
-                          <button
-                            key={dateStr}
-                            type="button"
-                            onClick={() => {
-                              setData((prev) => ({
-                                ...prev,
-                                date: dateStr,
-                                cleaningDays:
-                                  prev.cleaningFrequency === "weekly"
-                                    ? [getDayOfWeekFromDate(dateStr)]
-                                    : prev.cleaningFrequency === "multi_week" &&
-                                      prev.cleaningDays.length === 0
-                                    ? [getDayOfWeekFromDate(dateStr)]
-                                    : prev.cleaningDays,
-                              }));
-                              setShowAllMobileDates(false);
-                            }}
-                            className={`h-8 rounded-full text-[11px] font-semibold flex items-center justify-center border ${
-                              selected
-                                ? "bg-blue-600 text-white border-blue-600"
-                                : "bg-white text-slate-700 border-slate-200"
-                            }`}
-                          >
-                            {dayNum}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {data.date && (
-            <div className="space-y-2 w-full max-w-[350px]">
-              <p className="text-[11px] font-medium text-slate-500">
-                {selectedDateLabel
-                  ? `Select a time on ${selectedDateLabel}.`
-                  : "Select a time that works best for you."}
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {timeSlots.slice(0, 16).map((slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() =>
-                      setData((prev) => ({
-                        ...prev,
-                        time: slot,
-                      }))
-                    }
-                    className={`py-2.5 rounded-2xl border-2 font-bold text-xs transition-all flex items-center justify-center gap-1 ${
-                      data.time === slot
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                        : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5 opacity-70" />
-                    <span>{slot}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!data.date && (
-            <p className="text-[11px] text-slate-500">
-              Choose a date above to see available time slots.
+          {promoMsg && (
+            <p
+              className={`text-xs font-medium flex items-center gap-1.5 ${
+                promoMsg.type === "success"
+                  ? "text-emerald-600"
+                  : "text-red-600"
+              }`}
+            >
+              {promoMsg.type === "success" ? (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5" />
+              )}
+              {promoMsg.text}
             </p>
           )}
-        </div>
-
-        {/* Desktop Date & Time */}
-        <div className="hidden lg:block space-y-4">
-          <div>
-            <SectionHeader>2. Date &amp; Time</SectionHeader>
-            <p className="text-[10px] text-slate-500 mb-2 ml-1">
-              You can book up to 3 months in advance.
-            </p>
-            {monthYearLabel && (
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                  {monthYearLabel}
-                </p>
-              </div>
-            )}
-            <div className="mb-2">
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setVisibleStart((prev) => Math.max(0, prev - 1))
-                  }
-                  disabled={visibleStart === 0}
-                  className="w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                <div className="flex gap-3">
-                  {visibleDates.map((dateStr) => {
-                    const d = new Date(dateStr + "T00:00:00");
-                    const dayName = d.toLocaleDateString("en-ZA", {
-                      weekday: "short",
-                    });
-                    const dayNum = d.getDate();
-                    const selected = data.date === dateStr;
-                    const availability = getDateAvailability(dateStr);
-                    return (
-                      <button
-                        key={dateStr}
-                        type="button"
-                        onClick={() => {
-                          setData((prev) => ({
-                            ...prev,
-                            date: dateStr,
-                            cleaningDays:
-                              prev.cleaningFrequency === "weekly"
-                                ? [getDayOfWeekFromDate(dateStr)]
-                                : prev.cleaningFrequency === "multi_week" &&
-                                  prev.cleaningDays.length === 0
-                                ? [getDayOfWeekFromDate(dateStr)]
-                                : prev.cleaningDays,
-                          }));
-                        }}
-                        className={`min-w-[72px] px-3 py-3 rounded-full text-center text-xs font-semibold transition-all border-2 ${
-                          selected
-                            ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                            : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50"
-                        }`}
-                      >
-                        <p
-                          className={`text-[9px] font-semibold mb-0.5 ${
-                            selected ? "text-blue-100" : "text-slate-400"
-                          }`}
-                        >
-                          {dayName}
-                        </p>
-                        <p className="text-sm font-black leading-none">{dayNum}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setVisibleStart((prev) => Math.min(maxVisibleStart, prev + 1))
-                  }
-                  disabled={visibleStart >= maxVisibleStart}
-                  className="w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 hover:bg-slate-50 transition-colors"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {data.date && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-medium text-slate-500">
-                {selectedDateLabel
-                  ? `Select a time on ${selectedDateLabel}.`
-                  : "Select a time that works best for you."}
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {timeSlots.map((slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() =>
-                      setData((prev) => ({
-                        ...prev,
-                        time: slot,
-                      }))
-                    }
-                    className={`py-2.5 rounded-2xl border-2 font-bold text-xs transition-all flex items-center justify-center gap-1 ${
-                      data.time === slot
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                        : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5 opacity-70" />
-                    <span>{slot}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+          {promoMsg?.type === "error" && (
+            <a
+              href="/promotions"
+              className="text-xs font-semibold text-teal-700 hover:underline"
+            >
+              View current offers
+            </a>
           )}
         </div>
       </div>
@@ -2063,297 +2765,527 @@ function Step2Schedule({
   );
 }
 
-// ─── STEP 3: DETAILS (Cleaner + Contact) ─────────────────────────────────────
+// ─── STEP 4: CLEANER & TEAM ────────────────────────────────────────────────────
 
-const Step3Details = ({
+const CLEANERS_VISIBLE_STEP = 6;
+
+const StepCleanerTeam = ({
   data,
   setData,
-  errors,
   cleaners,
+  pricing,
 }: {
   data: BookingFormData;
   setData: React.Dispatch<React.SetStateAction<BookingFormData>>;
-  errors: Partial<Record<keyof BookingFormData, string>>;
   cleaners: Cleaner[];
+  pricing: ReturnType<typeof useCalcTotal>;
 }) => {
-  const showIndividual = data.service === "standard" || data.service === "airbnb";
+  const showIndividual =
+    data.service === "standard" ||
+    data.service === "airbnb" ||
+    data.service === "laundry";
+
+  const hasCleanerOrTeamSelection = showIndividual
+    ? !!data.cleanerId
+    : !!data.teamId;
 
   const filteredCleaners = useMemo(() => {
-    return cleaners.filter((cleaner) => {
-      const worksInArea =
-        !data.workingArea || cleaner.workingAreas.includes(data.workingArea);
-      const availableOnDate =
-        !data.date || !cleaner.unavailableDates.includes(data.date);
-      return worksInArea && availableOnDate;
-    });
+    const availableOnDate = (c: Cleaner) =>
+      !data.date || !c.unavailableDates.includes(data.date);
+    const worksInListedArea = (c: Cleaner) =>
+      !data.workingArea ||
+      c.workingAreas.length === 0 ||
+      c.workingAreas.includes(data.workingArea);
+
+    const byDate = cleaners.filter(availableOnDate);
+    const byArea = byDate.filter(worksInListedArea);
+    // Many suburbs exist; if no cleaner explicitly lists this area, still show available cleaners.
+    return byArea.length > 0 ? byArea : byDate;
   }, [cleaners, data.workingArea, data.date]);
 
-  const filteredTeams = useMemo(() => {
-    return TEAMS.filter((team) => {
-      const worksInArea =
-        !data.workingArea || team.workingAreas.includes(data.workingArea);
-      const availableOnDate =
-        !data.date || !team.unavailableDates.includes(data.date);
-      return worksInArea && availableOnDate;
+  const sortedCleaners = useMemo(() => {
+    return [...filteredCleaners].sort((a, b) => {
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      return a.name.localeCompare(b.name);
     });
+  }, [filteredCleaners]);
+
+  const cleanersListKey = useMemo(
+    () => sortedCleaners.map((c) => c.id).join(","),
+    [sortedCleaners]
+  );
+
+  const [cleanerVisibleCount, setCleanerVisibleCount] = useState(CLEANERS_VISIBLE_STEP);
+
+  useEffect(() => {
+    setCleanerVisibleCount(CLEANERS_VISIBLE_STEP);
+  }, [cleanersListKey]);
+
+  const selectedCleanerIndex = useMemo(() => {
+    if (!data.cleanerId || data.cleanerId === "any") return -1;
+    return sortedCleaners.findIndex((c) => c.id === data.cleanerId);
+  }, [sortedCleaners, data.cleanerId]);
+
+  const cleanerDisplayCount = Math.min(
+    sortedCleaners.length,
+    Math.max(
+      cleanerVisibleCount,
+      selectedCleanerIndex >= 0 ? selectedCleanerIndex + 1 : 0
+    )
+  );
+
+  const cleanersToShow = useMemo(
+    () => sortedCleaners.slice(0, cleanerDisplayCount),
+    [sortedCleaners, cleanerDisplayCount]
+  );
+
+  const cleanerShowMoreRemaining = sortedCleaners.length - cleanerDisplayCount;
+
+  const filteredTeams = useMemo(() => {
+    const availableOnDate = (t: (typeof TEAMS)[number]) =>
+      !data.date || !t.unavailableDates.includes(data.date);
+    const worksInListedArea = (t: (typeof TEAMS)[number]) =>
+      !data.workingArea ||
+      t.workingAreas.length === 0 ||
+      t.workingAreas.includes(data.workingArea);
+
+    const byDate = TEAMS.filter(availableOnDate);
+    const byArea = byDate.filter(worksInListedArea);
+    return byArea.length > 0 ? byArea : byDate;
   }, [data.workingArea, data.date]);
 
-  return (
-    <div className="space-y-6">
-      <StepTitle subtitle="Select your professional and tell us where to go.">
-        Final Details
-      </StepTitle>
+  const cardBase =
+    "relative w-full text-left rounded-xl border p-4 transition-all min-h-[5.5rem]";
+  const cardSelected =
+    "border-neutral-900 bg-neutral-900 text-white shadow-md ring-1 ring-neutral-900/10";
+  const cardIdle =
+    "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/80";
 
-      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5">
-        <SectionHeader>
-          1. Choose {showIndividual ? "Cleaner" : "Team"}
-        </SectionHeader>
+  return (
+    <div className="space-y-8">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+          Book your clean
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+          Complete your booking
+        </h2>
+        <div className="mt-8">
+          <h3 className="text-base font-bold text-neutral-900">Cleaner &amp; team</h3>
+          <p className="text-sm text-neutral-500 mt-1 max-w-xl">
+            Pick a preferred cleaner or let us assign the best match for your area and time.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-neutral-200/90 bg-white p-5 sm:p-7 shadow-[0_1px_0_rgba(0,0,0,0.04)] space-y-6">
+        <div>
+          <h3 className="text-xs font-black uppercase tracking-[0.14em] text-neutral-900">
+            Choose {showIndividual ? "a cleaner" : "a team"}
+          </h3>
+          <p className="text-[13px] text-neutral-500 mt-1">
+            Selection is based on your area and booking date.
+          </p>
+        </div>
 
         {showIndividual ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {filteredCleaners.length > 0 ? (
-              filteredCleaners.map((cleaner) => (
-                <SelectionCard
-                  key={cleaner.id}
-                  selected={data.cleanerId === cleaner.id}
-                  onClick={() =>
-                    setData((prev) => ({
-                      ...prev,
-                      cleanerId: cleaner.id,
-                    }))
-                  }
-                >
-                  <div className="flex flex-col items-center text-center gap-2">
-                    {cleaner.photo ? (
-                      <img
-                        src={cleaner.photo}
-                        alt={cleaner.name}
-                        className="w-14 h-14 rounded-full object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <User className="w-6 h-6 text-blue-500" />
+          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sortedCleaners.length > 0 ? (
+              cleanersToShow.map((cleaner) => {
+                const selected = data.cleanerId === cleaner.id;
+                return (
+                  <button
+                    key={cleaner.id}
+                    type="button"
+                    onClick={() =>
+                      setData((prev) => ({
+                        ...prev,
+                        cleanerId: cleaner.id,
+                      }))
+                    }
+                    className={`${cardBase} flex flex-col items-stretch gap-3 ${
+                      selected ? cardSelected : cardIdle
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {cleaner.photo ? (
+                        <img
+                          src={cleaner.photo}
+                          alt=""
+                          className="w-12 h-12 rounded-full object-cover shrink-0 ring-2 ring-white/20"
+                        />
+                      ) : (
+                        <div
+                          className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                            selected ? "bg-white/15 text-[#86EFAC]" : "bg-neutral-100 text-neutral-700"
+                          }`}
+                        >
+                          <User className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div className="min-w-0 text-left flex-1">
+                        <p
+                          className={`text-sm font-bold truncate ${
+                            selected ? "text-white" : "text-neutral-900"
+                          }`}
+                        >
+                          {cleaner.name}
+                        </p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Star
+                            className={`w-3.5 h-3.5 shrink-0 ${
+                              selected
+                                ? "text-amber-300 fill-amber-300"
+                                : "text-amber-400 fill-amber-400"
+                            }`}
+                          />
+                          <span
+                            className={`text-[11px] font-bold tabular-nums ${
+                              selected ? "text-white/90" : "text-neutral-800"
+                            }`}
+                          >
+                            {cleaner.rating}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                    <h4 className="font-bold text-slate-900 text-sm truncate w-full">
-                      {cleaner.name}
-                    </h4>
-                    <div className="flex items-center justify-center gap-1">
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      <span className="text-[10px] font-bold text-slate-800">
-                        {cleaner.rating}
-                      </span>
                     </div>
-                  </div>
-                </SelectionCard>
-              ))
+                  </button>
+                );
+              })
             ) : (
               <div className="space-y-3 col-span-full">
-                <SelectionCard
-                  selected={data.cleanerId === "any"}
+                <button
+                  type="button"
                   onClick={() =>
                     setData((prev) => ({
                       ...prev,
                       cleanerId: "any",
                     }))
                   }
+                  className={`${cardBase} ${
+                    data.cleanerId === "any" ? cardSelected : cardIdle
+                  }`}
                 >
-                  <div className="flex flex-col items-center text-center gap-2">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-                      <Users className="w-4 h-4 text-blue-600" />
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
+                        data.cleanerId === "any"
+                          ? "bg-white/10 text-[#86EFAC]"
+                          : "bg-neutral-100 text-neutral-700"
+                      }`}
+                    >
+                      <Users className="w-5 h-5" />
                     </div>
-                    <h4 className="font-bold text-slate-900 text-sm">
-                      Any available cleaner
-                    </h4>
-                    <p className="text-[11px] text-slate-500">
-                      We'll match you with the best available professional for this area/date.
-                    </p>
+                    <div className="min-w-0 text-left">
+                      <p
+                        className={`text-sm font-bold ${
+                          data.cleanerId === "any" ? "text-white" : "text-neutral-900"
+                        }`}
+                      >
+                        Any available cleaner
+                      </p>
+                      <p
+                        className={`mt-1 text-xs leading-relaxed ${
+                          data.cleanerId === "any" ? "text-white/75" : "text-neutral-500"
+                        }`}
+                      >
+                        We&apos;ll match you with the best available professional for this
+                        area and date.
+                      </p>
+                    </div>
                   </div>
-                </SelectionCard>
-                <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center text-[11px] text-slate-500">
-                  No individual cleaners visible for this exact area/date. You can select{" "}
-                  <span className="font-semibold text-slate-700">any available cleaner</span>{" "}
-                  above, or try another date or nearby area.
+                </button>
+                <div className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50/80 px-4 py-3 text-center text-[12px] text-neutral-600">
+                  No individual cleaners listed for this exact area/date. You can still choose{" "}
+                  <span className="font-semibold text-neutral-900">any available cleaner</span>{" "}
+                  above, or go back to Schedule to try another date or area.
                 </div>
               </div>
             )}
           </div>
+          {sortedCleaners.length > 0 && cleanerShowMoreRemaining > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                setCleanerVisibleCount((n) => n + CLEANERS_VISIBLE_STEP)
+              }
+              className="w-full rounded-xl border border-neutral-200 bg-neutral-50/90 px-4 py-3 text-sm font-semibold text-neutral-800 transition-colors hover:bg-neutral-100"
+            >
+              Show {Math.min(cleanerShowMoreRemaining, CLEANERS_VISIBLE_STEP)} more
+              {cleanerShowMoreRemaining > CLEANERS_VISIBLE_STEP
+                ? ` (${cleanerShowMoreRemaining} left)`
+                : ""}
+            </button>
+          )}
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filteredTeams.length > 0 ? (
-              filteredTeams.map((team) => (
-                <SelectionCard
-                  key={team.id}
-                  selected={data.teamId === team.id}
-                  onClick={() =>
-                    setData((prev) => ({
-                      ...prev,
-                      teamId: team.id,
-                    }))
-                  }
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Users className="w-4 h-4 text-blue-600" />
+              filteredTeams.map((team) => {
+                const selected = data.teamId === team.id;
+                return (
+                  <button
+                    key={team.id}
+                    type="button"
+                    onClick={() =>
+                      setData((prev) => ({
+                        ...prev,
+                        teamId: team.id,
+                      }))
+                    }
+                    className={`${cardBase} ${
+                      selected ? cardSelected : cardIdle
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
+                            selected ? "bg-white/10 text-[#86EFAC]" : "bg-neutral-100 text-neutral-700"
+                          }`}
+                        >
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <span
+                          className={`font-bold text-sm truncate ${
+                            selected ? "text-white" : "text-neutral-900"
+                          }`}
+                        >
+                          {team.name}
+                        </span>
                       </div>
-                      <h4 className="font-bold text-slate-900 text-sm">
-                        {team.name}
-                      </h4>
+                      <span
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                          selected
+                            ? "bg-white/15 text-[#86EFAC]"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {team.availability}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full flex-shrink-0">
-                      {team.availability}
-                    </span>
-                  </div>
-                </SelectionCard>
-              ))
+                  </button>
+                );
+              })
             ) : (
               <div className="space-y-3">
-                <SelectionCard
-                  selected={data.teamId === "any"}
+                <button
+                  type="button"
                   onClick={() =>
                     setData((prev) => ({
                       ...prev,
                       teamId: "any",
                     }))
                   }
+                  className={`${cardBase} ${
+                    data.teamId === "any" ? cardSelected : cardIdle
+                  }`}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Users className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">
-                          Any available team
-                        </h4>
-                        <p className="text-[11px] text-slate-500">
-                          We'll assign the best-matched team based on your area and date.
-                        </p>
-                      </div>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
+                        data.teamId === "any"
+                          ? "bg-white/10 text-[#86EFAC]"
+                          : "bg-neutral-100 text-neutral-700"
+                      }`}
+                    >
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 text-left">
+                      <p
+                        className={`text-sm font-bold ${
+                          data.teamId === "any" ? "text-white" : "text-neutral-900"
+                        }`}
+                      >
+                        Any available team
+                      </p>
+                      <p
+                        className={`mt-1 text-xs leading-relaxed ${
+                          data.teamId === "any" ? "text-white/75" : "text-neutral-500"
+                        }`}
+                      >
+                        We&apos;ll assign the best-matched team based on your area and date.
+                      </p>
                     </div>
                   </div>
-                </SelectionCard>
-                <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center text-[11px] text-slate-500">
-                  No specific teams visible for this exact area/date. You can select{" "}
-                  <span className="font-semibold text-slate-700">any available team</span>{" "}
-                  above, or try another date or nearby area.
+                </button>
+                <div className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50/80 px-4 py-3 text-center text-[12px] text-neutral-600">
+                  No specific teams listed for this exact area/date. Choose{" "}
+                  <span className="font-semibold text-neutral-900">any available team</span>{" "}
+                  above, or adjust your schedule.
                 </div>
               </div>
             )}
           </div>
         )}
+
+        {hasCleanerOrTeamSelection && (
+          <BookingTipBlock data={data} setData={setData} pricing={pricing} />
+        )}
+      </div>
+    </div>
+  );
+};
+
+function localDigitsFromSaPhone(phone: string): string {
+  const n = phone.replace(/\s+/g, "");
+  if (!n) return "";
+  if (n.startsWith("+27")) return n.slice(3).replace(/\D/g, "").slice(0, 9);
+  if (n.startsWith("27") && n.length >= 11) return n.slice(2).replace(/\D/g, "").slice(0, 9);
+  if (n.startsWith("0")) return n.slice(1).replace(/\D/g, "").slice(0, 9);
+  return n.replace(/\D/g, "").slice(0, 9);
+}
+
+function formatLocalPhoneDisplay(digits9: string): string {
+  const d = digits9.replace(/\D/g, "").slice(0, 9);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)} ${d.slice(2)}`;
+  return `${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5)}`;
+}
+
+function saMobileFromLocalDigits(digits: string): string {
+  const d = digits.replace(/\D/g, "").slice(0, 9);
+  if (d.length === 0) return "";
+  return `0${d}`;
+}
+
+function serviceTitleForSummary(service: ServiceType): string {
+  const t = SERVICES.find((s) => s.id === service)?.title ?? "Cleaning";
+  return t.replace(/\s+Cleaning\s*$/i, " Clean");
+}
+
+// ─── STEP 5: YOUR DETAILS (CONTACT) ────────────────────────────────────────────
+
+const Step4YourDetails = ({
+  data,
+  setData,
+  errors,
+}: {
+  data: BookingFormData;
+  setData: React.Dispatch<React.SetStateAction<BookingFormData>>;
+  errors: Partial<Record<keyof BookingFormData, string>>;
+}) => {
+  const localPhone = formatLocalPhoneDisplay(localDigitsFromSaPhone(data.phone));
+
+  const setPhoneFromLocal = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 9);
+    setData((prev) => ({
+      ...prev,
+      phone: saMobileFromLocalDigits(digits),
+    }));
+  };
+
+  const inputFocus =
+    "w-full px-4 py-3 bg-white border border-neutral-200 rounded-xl text-neutral-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-all";
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-600 mb-3">
+          Book your clean
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight mb-2">
+          Complete your booking
+        </h2>
+        <p className="text-sm font-semibold text-neutral-900">Your details</p>
+        <p className="text-sm text-neutral-500 mt-1">
+          Almost done — just your contact information.
+        </p>
       </div>
 
-      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5">
-        <SectionHeader>2. Your Information</SectionHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InputField
-              label="Full Name"
-              required
+      <div className="space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <FieldLabel required>Full name</FieldLabel>
+            <input
+              type="text"
+              autoComplete="name"
               value={data.name}
               onChange={(e) =>
-                setData((prev) => ({
-                  ...prev,
-                  name: e.target.value,
-                }))
+                setData((prev) => ({ ...prev, name: e.target.value }))
               }
-              error={errors.name}
+              placeholder="Jane Smith"
+              className={`${inputFocus} ${errors.name ? "border-red-400 bg-red-50" : ""}`}
             />
-            <div className="w-full">
-              <FieldLabel>Apartment or Unit Number (optional)</FieldLabel>
-              <input
-                type="text"
-                value={data.apartmentUnit}
-                onChange={(e) =>
-                  setData((prev) => ({
-                    ...prev,
-                    apartmentUnit: e.target.value,
-                  }))
-                }
-                placeholder="e.g. 12B, Unit 5, Apt 301"
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InputField
-              label="Phone"
-              required
-              type="tel"
-              value={data.phone}
-              onChange={(e) =>
-                setData((prev) => ({
-                  ...prev,
-                  phone: e.target.value,
-                }))
-              }
-              hint="South African mobile format, e.g. 082 123 4567 or +27 82 123 4567."
-              error={errors.phone}
-            />
-            <InputField
-              label="Email"
-              required
-              type="email"
-              value={data.email}
-              onChange={(e) =>
-                setData((prev) => ({
-                  ...prev,
-                  email: e.target.value,
-                }))
-              }
-              hint="We'll send your booking confirmation here."
-              error={errors.email}
-            />
-          </div>
-          <div className="w-full">
-            <FieldLabel required>Address</FieldLabel>
-            <p className="text-[10px] text-slate-400 mb-1 ml-1">
-              Include street and number, suburb, city, and postal code so our team can find you easily.
-            </p>
-            <textarea
-              value={data.address}
-              onChange={(e) =>
-                setData((prev) => ({
-                  ...prev,
-                  address: e.target.value,
-                }))
-              }
-              placeholder="Street and number, suburb, city, postal code"
-              className={`w-full px-4 py-3 bg-white border rounded-xl text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-y min-h-[80px] ${
-                errors.address ? "border-red-400 bg-red-50" : "border-slate-200"
-              }`}
-            />
-            {errors.address && (
-              <p className="text-[10px] text-red-500 mt-1 ml-1 font-medium">
-                {errors.address}
-              </p>
+            {errors.name && (
+              <p className="text-[10px] text-red-500 mt-1 ml-1 font-medium">{errors.name}</p>
             )}
           </div>
-          <div className="w-full">
-            <FieldLabel>Notes</FieldLabel>
-            <textarea
-              value={data.instructions}
+          <div>
+            <FieldLabel required>Email address</FieldLabel>
+            <input
+              type="email"
+              autoComplete="email"
+              value={data.email}
               onChange={(e) =>
-                setData((prev) => ({
-                  ...prev,
-                  instructions: e.target.value,
-                }))
+                setData((prev) => ({ ...prev, email: e.target.value }))
               }
-              placeholder="Any special instructions, access details, or notes for the cleaner..."
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-y min-h-[72px]"
+              placeholder="jane@email.com"
+              className={`${inputFocus} ${errors.email ? "border-red-400 bg-red-50" : ""}`}
+            />
+            {errors.email && (
+              <p className="text-[10px] text-red-500 mt-1 ml-1 font-medium">{errors.email}</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel required>Phone number</FieldLabel>
+          <div className="flex gap-2">
+            <div className="flex items-center gap-2 px-3.5 py-3 border border-neutral-200 rounded-xl bg-white text-neutral-600 shrink-0">
+              <Phone className="w-4 h-4 text-neutral-500" aria-hidden />
+              <span className="text-sm font-semibold tabular-nums">+27</span>
+            </div>
+            <input
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              value={localPhone}
+              onChange={(e) => setPhoneFromLocal(e.target.value)}
+              placeholder="71 234 5678"
+              className={`flex-1 min-w-0 ${inputFocus} ${errors.phone ? "border-red-400 bg-red-50" : ""}`}
+              aria-label="Mobile number without country code"
             />
           </div>
+          {errors.phone && (
+            <p className="text-[10px] text-red-500 mt-1 ml-1 font-medium">{errors.phone}</p>
+          )}
+        </div>
+
+        <div>
+          <FieldLabel>Apartment or unit (optional)</FieldLabel>
+          <input
+            type="text"
+            value={data.apartmentUnit}
+            onChange={(e) =>
+              setData((prev) => ({ ...prev, apartmentUnit: e.target.value }))
+            }
+            placeholder="e.g. 12B, Unit 5"
+            className={inputFocus}
+          />
+        </div>
+
+        <div>
+          <FieldLabel>Special instructions (optional)</FieldLabel>
+          <textarea
+            value={data.instructions}
+            onChange={(e) =>
+              setData((prev) => ({ ...prev, instructions: e.target.value }))
+            }
+            placeholder="e.g. focus on the kitchen, pet in the home, access code..."
+            rows={4}
+            className={`${inputFocus} resize-y min-h-[100px]`}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-// ─── STEP 4: PAYMENT (Payment + Review) ─────────────────────────────────────
+// ─── STEP 6: PAYMENT ───────────────────────────────────────────────────────────
 
-const Step4Payment = ({
+const Step5Checkout = ({
   data,
   setData,
   pricing,
@@ -2367,269 +3299,131 @@ const Step4Payment = ({
   onPaystackPay: () => void;
   isProcessing: boolean;
   paymentError: string;
-}) => {
-  const tipOptions = [0, 50, 100, 150];
-  const [promoInput, setPromoInput] = useState(data.promoCode);
-  const [promoMsg, setPromoMsg] = useState<{
-    text: string;
-    type: "success" | "error";
-  } | null>(null);
-  const [customTipMode, setCustomTipMode] = useState(
-    !tipOptions.includes(data.tipAmount)
-  );
-  const [customTipInput, setCustomTipInput] = useState(
-    !tipOptions.includes(data.tipAmount) && data.tipAmount > 0
-      ? String(data.tipAmount)
-      : ""
-  );
-
-  const applyPromo = () => {
-    const code = promoInput.toUpperCase().trim();
-    if (!code) {
-      setData((prev) => ({
-        ...prev,
-        promoCode: "",
-      }));
-      setPromoMsg(null);
-      return;
-    }
-    // Promo codes are now validated and priced on the server.
-    // We just persist the code so the backend can apply it.
-    setData((prev) => ({
-      ...prev,
-      promoCode: code,
-    }));
-    setPromoMsg({
-      text: "We’ll apply this promo code when we confirm your pricing.",
-      type: "success",
-    });
-  };
-
-  return (
-    <div className="space-y-10">
-      <div>
-        <StepTitle subtitle="Choose how to pay and confirm your booking.">
-          Payment &amp; Confirm
-        </StepTitle>
-
-        <div className="space-y-10">
-          <div className="space-y-4">
-            <SectionHeader>1. How you&apos;ll pay</SectionHeader>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-start gap-3">
-              <CreditCard className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-left text-xs">
-                <p className="font-bold text-slate-900">
-                  Pay by card or EFT – secure checkout
-                </p>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  We currently only support secure online payments. You&apos;ll be redirected to an encrypted payment page to complete your booking.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <SectionHeader>2. Add a tip</SectionHeader>
-            <div className="grid grid-cols-5 gap-2 max-w-md">
-              {tipOptions.map((amount) => {
-                const isSelected = !customTipMode && data.tipAmount === amount;
-                return (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => {
-                      setCustomTipMode(false);
-                      setCustomTipInput("");
-                      setData((prev) => ({
-                        ...prev,
-                        tipAmount: amount,
-                      }));
-                    }}
-                    className={`py-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
-                      isSelected
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-slate-600 border-slate-100 hover:border-blue-200"
-                    }`}
-                  >
-                    {amount === 0 ? "None" : `R${amount}`}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomTipMode(true);
-                  if (!customTipInput && data.tipAmount > 0) {
-                    setCustomTipInput(String(data.tipAmount));
-                  }
-                }}
-                className={`py-2.5 rounded-xl border-2 text-[10px] font-bold transition-all ${
-                  customTipMode
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-slate-600 border-slate-100 hover:border-blue-200"
-                }`}
-              >
-                Custom
-              </button>
-            </div>
-            {customTipMode && (
-              <div className="max-w-md space-y-1">
-                <label className="text-[10px] font-medium text-slate-500 ml-1">
-                  Enter custom tip amount (R)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={10}
-                  value={customTipInput}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setCustomTipInput(raw);
-                    const parsed = Number(raw);
-                    if (!Number.isNaN(parsed) && parsed >= 0) {
-                      setData((prev) => ({
-                        ...prev,
-                        tipAmount: parsed,
-                      }));
-                    }
-                  }}
-                  placeholder="E.g. 75"
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4 max-w-md">
-            <SectionHeader>3. Promo code</SectionHeader>
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={promoInput}
-                  onChange={(e) => setPromoInput(e.target.value)}
-                  placeholder="Enter code (e.g. SAVE20)"
-                  className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm uppercase"
-                />
-                <button
-                  onClick={applyPromo}
-                  className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all text-sm"
-                >
-                  Apply
-                </button>
-              </div>
-              {promoMsg && (
-                <p
-                  className={`text-[10px] font-medium ml-1 flex items-center gap-1 ${
-                    promoMsg.type === "success"
-                      ? "text-emerald-600"
-                      : "text-red-500"
-                  }`}
-                >
-                  {promoMsg.type === "success" ? (
-                    <CheckCircle2 className="w-3 h-3" />
-                  ) : (
-                    <AlertCircle className="w-3 h-3" />
-                  )}
-                  {promoMsg.text}
-                </p>
-              )}
-              {promoMsg?.type === "error" && (
-                <a
-                  href="/promotions"
-                  className="text-[10px] font-semibold text-blue-600 underline ml-1"
-                >
-                  View current offers
-                </a>
-              )}
-            </div>
-          </div>
-
-          {paymentError && (
-            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600">
-              <AlertCircle className="w-5 h-5" />
-              <p className="text-xs font-medium">{paymentError}</p>
-            </div>
-          )}
-
-          <div className="space-y-3 pt-2">
-            <SectionHeader>4. Terms &amp; cancellation</SectionHeader>
-            <label className="flex items-start gap-2 text-[11px] text-slate-600">
-              <input
-                type="checkbox"
-                checked={!!data.acceptedTerms}
-                onChange={(e) =>
-                  setData((prev) => ({
-                    ...prev,
-                    acceptedTerms: e.target.checked,
-                  }))
-                }
-                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span>
-                I have read and agree to the{" "}
-                <a
-                  href="/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-blue-600 underline"
-                >
-                  terms of service
-                </a>{" "}
-                and{" "}
-                <a
-                  href="/cancellation-policy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-blue-600 underline"
-                >
-                  cancellation policy
-                </a>
-                .
-              </span>
-            </label>
-          </div>
-
-          <div className="pt-4">
-            <button
-              onClick={onPaystackPay}
-              disabled={isProcessing || !data.acceptedTerms}
-              className="w-full sm:w-auto px-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl shadow-blue-100 text-sm"
-            >
-              {isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ShieldCheck className="w-4 h-4" />
-              )}
-              Securely Pay R{pricing.total}
-            </button>
-            <p className="text-[10px] text-slate-400 mt-3 ml-1">
-              Subtotal R{pricing.subtotal}
-              {pricing.discountAmount > 0 && (
-                <>
-                  {" "}
-                  − Discount R{pricing.discountAmount}
-                </>
-              )}
-              {pricing.tipAmount > 0 && (
-                <>
-                  {" "}
-                  + Tip R{pricing.tipAmount}
-                </>
-              )}{" "}
-              = R{pricing.total} total.
-            </p>
-            <p className="text-[10px] text-slate-400 mt-1 ml-1">
-              Your payment is processed securely. You&apos;ll receive a confirmation email with all booking details.
-            </p>
-          </div>
-        </div>
+}) => (
+  <div className="space-y-8">
+    <div>
+      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+        Book your clean
+      </p>
+      <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+        Complete your booking
+      </h2>
+      <div className="mt-8">
+        <h3 className="text-base font-bold text-neutral-900">Payment</h3>
+        <p className="text-sm text-neutral-500 mt-1 max-w-xl">
+          We&apos;ll confirm by email and send a receipt after Paystack.
+        </p>
       </div>
     </div>
-  );
-};
 
-// ─── STEP 5: CONFIRMATION ───────────────────────────────────────────────────
+    <div className="rounded-2xl border border-neutral-200/90 bg-white p-5 sm:p-7 shadow-[0_1px_0_rgba(0,0,0,0.04)] space-y-8">
+      <div className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-neutral-50/80 px-4 py-3.5">
+        <CreditCard className="w-5 h-5 text-neutral-700 mt-0.5 shrink-0" />
+        <div className="text-left text-xs min-w-0">
+          <p className="font-bold text-neutral-900">Pay by card or EFT – secure checkout</p>
+          <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+            You&apos;ll be redirected to Paystack to complete payment before your booking is
+            confirmed.
+          </p>
+        </div>
+      </div>
+
+      {paymentError && (
+        <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 text-red-600">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <p className="text-xs font-medium">{paymentError}</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <h4 className="text-xs font-black uppercase tracking-[0.14em] text-neutral-900">
+          Terms
+        </h4>
+        <label className="flex items-start gap-2.5 text-[12px] text-neutral-600 leading-snug">
+          <input
+            type="checkbox"
+            checked={!!data.acceptedTerms}
+            onChange={(e) =>
+              setData((prev) => ({
+                ...prev,
+                acceptedTerms: e.target.checked,
+              }))
+            }
+            className="mt-0.5 w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900/20"
+          />
+          <span>
+            I have read and agree to the{" "}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-neutral-900 underline underline-offset-2"
+            >
+              terms of service
+            </a>{" "}
+            and{" "}
+            <a
+              href="/cancellation-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-neutral-900 underline underline-offset-2"
+            >
+              cancellation policy
+            </a>
+            .
+          </span>
+        </label>
+      </div>
+
+      <div className="pt-1">
+        <button
+          type="button"
+          onClick={onPaystackPay}
+          disabled={isProcessing || !data.acceptedTerms}
+          className="w-full sm:w-auto px-10 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-60 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-neutral-900/15 text-sm"
+        >
+          {isProcessing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <ShieldCheck className="w-4 h-4" />
+          )}
+          Securely Pay R{pricing.total}
+        </button>
+        <p className="text-[10px] text-neutral-400 mt-3 ml-0.5 leading-relaxed">
+          Line items R{pricing.subtotal}
+          {(pricing.peakCharge > 0 || pricing.weekendCharge > 0) && (
+            <>
+              {" "}
+              + Peak/weekend R{pricing.peakCharge + pricing.weekendCharge}
+            </>
+          )}
+          {pricing.areaMultiplier !== 1 && (
+            <> × Area {pricing.areaMultiplier}</>
+          )}
+          {pricing.discountAmount > 0 && (
+            <>
+              {" "}
+              − Discount R{pricing.discountAmount}
+            </>
+          )}
+          {pricing.tipAmount > 0 && (
+            <>
+              {" "}
+              + Tip R{pricing.tipAmount}
+            </>
+          )}{" "}
+          = R{pricing.total} total.
+        </p>
+        <p className="text-[10px] text-neutral-400 mt-1 ml-0.5">
+          Your payment is processed securely. You&apos;ll receive a confirmation email with all
+          booking details.
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+// ─── CONFIRMATION (legacy inline — success uses /booking/verify) ──────────────
 
 const Step5Confirmation = ({
   data,
@@ -2657,7 +3451,10 @@ const Step5Confirmation = ({
       })()
     : "";
 
-  const showIndividual = data.service === "standard" || data.service === "airbnb";
+  const showIndividual =
+    data.service === "standard" ||
+    data.service === "airbnb" ||
+    data.service === "laundry";
 
   const professionalLabel = (() => {
     if (showIndividual) {
@@ -2705,7 +3502,7 @@ const Step5Confirmation = ({
     const startStr = formatForCalendar(start);
     const endStr = formatForCalendar(end);
 
-    const title = encodeURIComponent(`${service.title} – Shalean Cleaning Services`);
+    const title = encodeURIComponent(`${service.title} – Bokkies`);
     const details = encodeURIComponent(
       `Booking reference: ${bookingRef}\nService: ${service.title}\nAddress: ${data.address}${
         data.apartmentUnit ? `, ${data.apartmentUnit}` : ""
@@ -2895,10 +3692,10 @@ export const BookingSystem = ({
     }
   }, [step, onStepChange]);
 
-  // When logged-in customer reaches step 3, pull their profile and prefill contact details
+  // When logged-in customer reaches your-details, pull their profile and prefill contact details
   useEffect(() => {
     if (
-      step !== 3 ||
+      step !== 5 ||
       status !== "authenticated" ||
       (session?.user as { role?: string } | undefined)?.role !== "customer"
     ) {
@@ -2971,40 +3768,60 @@ export const BookingSystem = ({
       initialData = { ...initialData, time: "08:00" };
     }
 
+    const params = new URLSearchParams(window.location.search);
+    const serviceSlug = params.get("service");
+    if (serviceSlug) {
+      const id = SERVICE_SLUG_TO_ID[serviceSlug];
+      if (id) {
+        initialData = { ...initialData, service: id };
+      }
+    }
+    let addressFromPrefill: string | null = null;
+    try {
+      const stored = sessionStorage.getItem("shaleanBookingAddressPrefill");
+      if (stored?.trim()) {
+        addressFromPrefill = stored.trim();
+        sessionStorage.removeItem("shaleanBookingAddressPrefill");
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const addressParam = addressFromPrefill ?? params.get("address");
+    if (addressParam != null && addressParam.trim()) {
+      const trimmed = addressParam.trim();
+      initialData = { ...initialData, address: trimmed };
+      const fromUrl = inferWorkingAreaFromAddress(trimmed);
+      if (fromUrl) {
+        initialData = { ...initialData, workingArea: fromUrl };
+      }
+    } else if (!(initialData.workingArea ?? "").trim() && initialData.address.trim()) {
+      const fromStored = inferWorkingAreaFromAddress(initialData.address.trim());
+      if (fromStored) {
+        initialData = { ...initialData, workingArea: fromStored };
+      }
+    }
+
     setData(initialData);
     setStep(1);
 
-    const { search } = window.location;
-    if (search) {
-      const params = new URLSearchParams(search);
-      const serviceSlug = params.get("service");
-      if (serviceSlug) {
-        const id = SERVICE_SLUG_TO_ID[serviceSlug];
-        if (id) {
-          setData((prev) => ({
-            ...prev,
-            service: id,
-          }));
-        }
+    const ref = params.get("ref");
+    if (ref && typeof ref === "string" && ref.trim()) {
+      const trimmed = ref.trim();
+      setReferralRef(trimmed);
+      try {
+        window.localStorage.setItem("bookingReferralRef", trimmed);
+      } catch {
+        // ignore
       }
-      const ref = params.get("ref");
-      if (ref && typeof ref === "string" && ref.trim()) {
-        const trimmed = ref.trim();
-        setReferralRef(trimmed);
-        try {
-          window.localStorage.setItem("bookingReferralRef", trimmed);
-        } catch {
-          // ignore
+    } else {
+      try {
+        const stored = window.localStorage.getItem("bookingReferralRef");
+        if (stored && typeof stored === "string" && stored.trim()) {
+          setReferralRef(stored.trim());
         }
-      } else {
-        try {
-          const stored = window.localStorage.getItem("bookingReferralRef");
-          if (stored && typeof stored === "string" && stored.trim()) {
-            setReferralRef(stored.trim());
-          }
-        } catch {
-          // ignore
-        }
+      } catch {
+        // ignore
       }
     }
     // run only once on mount
@@ -3113,6 +3930,7 @@ export const BookingSystem = ({
 
     const params = new URLSearchParams(window.location.search);
     params.delete("service");
+    params.delete("address");
     const serviceSlug = SERVICE_TITLE_SLUGS[data.service];
     if (serviceSlug) {
       params.set("service", serviceSlug);
@@ -3130,8 +3948,9 @@ export const BookingSystem = ({
     const newErrors: Partial<Record<keyof BookingFormData, string>> = {};
     if (step === 1) {
       if (!data.workingArea) newErrors.workingArea = "Area required";
+      if (!data.address.trim()) newErrors.address = "Street address required";
     }
-    if (step === 3) {
+    if (step === 5) {
       if (!data.name.trim()) newErrors.name = "Name required";
       if (
         !data.email.trim() ||
@@ -3147,23 +3966,27 @@ export const BookingSystem = ({
           newErrors.phone = "Enter a valid South African mobile number.";
         }
       }
-      if (!data.address.trim()) newErrors.address = "Address required";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [step, data]);
 
   const canProceed = useCallback((): boolean => {
-    if (step === 1) return !!data.workingArea;
-    if (step === 2) return !!data.date && !!data.time;
-    if (step === 3) {
-      const needsIndividual = data.service === "standard" || data.service === "airbnb";
+    if (step === 1) return !!data.workingArea && !!data.address.trim();
+    if (step === 2) return true;
+    if (step === 3) return !!data.date && !!data.time;
+    if (step === 4) {
+      const needsIndividual =
+        data.service === "standard" ||
+        data.service === "airbnb" ||
+        data.service === "laundry";
+      return needsIndividual ? !!data.cleanerId : !!data.teamId;
+    }
+    if (step === 5) {
       return (
-        (needsIndividual ? !!data.cleanerId : !!data.teamId) &&
-        !!data.name &&
-        !!data.email &&
-        !!data.phone &&
-        !!data.address
+        !!data.name?.trim() &&
+        !!data.email?.trim() &&
+        !!data.phone?.trim()
       );
     }
     return true;
@@ -3173,7 +3996,7 @@ export const BookingSystem = ({
     if (!validate()) return;
     if (!canProceed()) return;
 
-    setStep((s) => Math.min(s + 1, 5));
+    setStep((s) => Math.min(s + 1, TOTAL_STEPS));
 
     if (typeof window !== "undefined") {
       window.scrollTo({
@@ -3267,15 +4090,56 @@ export const BookingSystem = ({
     }
   }, [data, pricing, pricingReady, referralRef]);
 
+  const summaryLight =
+    step === 1 || step === 2 || step === 3 || step === 4 || step === 5;
+
+  const pricingRoomLine =
+    pricing.bedroomAdd +
+    pricing.bathroomAdd +
+    pricing.extraRoomsAdd +
+    pricing.officePrivateAdd +
+    pricing.officeMeetingAdd +
+    pricing.officeScaleAdd +
+    pricing.carpetRoomsAdd +
+    pricing.looseRugsAdd +
+    pricing.carpetExtraCleanerAdd;
+
+  const frequencyLabelForSummary =
+    data.cleaningFrequency === "once"
+      ? "One-time"
+      : data.cleaningFrequency === "weekly"
+        ? "Weekly"
+        : data.cleaningFrequency === "bi_weekly"
+          ? "Bi-weekly"
+          : data.cleaningFrequency === "monthly"
+            ? "Monthly"
+            : data.cleaningFrequency === "multi_week"
+              ? "Custom"
+              : "One-time";
+
+  const serviceEquipmentFee =
+    pricing.subtotal -
+    pricing.basePrice -
+    pricingRoomLine -
+    pricing.extrasTotal;
+
+  /** Supplies choice only applies to Standard & Airbnb (not Deep, Move, or Carpet). */
+  const showEquipmentChoice =
+    data.service === "standard" ||
+    data.service === "airbnb" ||
+    data.service === "laundry";
+
   return (
-    <div className="w-full pt-4 pb-4 font-sans">
+    <div
+      className={`w-full pt-4 pb-4 font-sans ${step === 6 ? "pb-28 lg:pb-4" : ""} ${summaryLight ? "bg-[#F9F9F7] min-h-[calc(100vh-3.5rem)]" : ""}`}
+    >
       <main className="max-w-7xl mx-auto px-3 sm:px-6 w-full pb-2">
         <div aria-live="polite" className="sr-only">
           {`Step ${step}: ${STEP_LABELS[step - 1]}`}
         </div>
-        <div className={`grid gap-8 items-start ${step < 5 ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,360px)]" : "max-w-xl mx-auto"}`}>
+        <div className="grid gap-8 items-start lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,360px)]">
           <div className="space-y-6">
-            <div className={`bg-transparent sm:bg-white rounded-3xl border-0 sm:border sm:border-slate-200 px-0 shadow-sm flex flex-col gap-8 ${step === 3 ? "pt-6 pb-2 sm:pt-10 sm:px-10 sm:pb-2" : "py-6 sm:p-10"}`}>
+            <div className={`flex flex-col gap-8 ${summaryLight ? "bg-transparent border-0 shadow-none py-6 sm:py-8 px-0 sm:px-0" : "bg-transparent sm:bg-white rounded-3xl border-0 sm:border sm:border-slate-200 px-0 shadow-sm py-6 sm:p-10"}`}>
               {redirectedFromDeepLink && step === 1 && (
                 <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
                   To finish your booking, start with your cleaning plan. We brought you back to Step 1 so you can complete the details above first.
@@ -3309,17 +4173,37 @@ export const BookingSystem = ({
                       pricingState={pricingState}
                     />
                   )}
-                  {step === 2 && <Step2Schedule data={data} setData={setData} />}
-                  {step === 3 && (
-                    <Step3Details
+                  {step === 2 && (
+                    <Step2Preferences
                       data={data}
                       setData={setData}
-                      errors={errors}
-                      cleaners={cleaners}
+                      pricingState={pricingState}
+                    />
+                  )}
+                  {step === 3 && (
+                    <Step2Schedule
+                      data={data}
+                      setData={setData}
+                      pricing={pricing}
                     />
                   )}
                   {step === 4 && (
-                    <Step4Payment
+                    <StepCleanerTeam
+                      data={data}
+                      setData={setData}
+                      cleaners={cleaners}
+                      pricing={pricing}
+                    />
+                  )}
+                  {step === 5 && (
+                    <Step4YourDetails
+                      data={data}
+                      setData={setData}
+                      errors={errors}
+                    />
+                  )}
+                  {step === 6 && (
+                    <Step5Checkout
                       data={data}
                       setData={setData}
                       pricing={pricing}
@@ -3328,72 +4212,211 @@ export const BookingSystem = ({
                       paymentError={paymentError}
                     />
                   )}
-                  {step === 5 && (
-                    <Step5Confirmation
-                      data={data}
-                      pricing={pricing}
-                      bookingRef={bookingRef}
-                      onBookAnother={() => {
-                        setStep(1);
-                        setData(DEFAULT_FORM);
-                        setBookingRef("");
-                      }}
-                      cleaners={cleaners}
-                    />
-                  )}
                 </motion.div>
               </AnimatePresence>
 
-              {step < 5 && (
-                <div className="hidden lg:flex gap-4 pt-4 border-t border-slate-100">
-                  {step > 1 && (
-                    <button
-                      onClick={prevStep}
-                      className="flex items-center gap-2 px-6 py-4 border-2 border-slate-200 text-slate-600 font-black rounded-2xl hover:bg-slate-50 transition-all text-sm"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                      Back
-                    </button>
-                  )}
-                  {step < 4 && (
-                    <button
-                      onClick={nextStep}
-                      disabled={!canProceed()}
-                      className="flex-1 bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
-                    >
-                      {`Continue to ${STEP_LABELS[step]}`}
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
+              {step <= 6 && (
+                <div className="hidden lg:flex flex-col gap-3 pt-4 border-t border-slate-100">
+                  <div className="flex gap-4">
+                    {step > 1 && (
+                      <button
+                        type="button"
+                        onClick={prevStep}
+                        className="flex items-center gap-2 px-6 py-4 border-2 border-neutral-200 bg-white text-neutral-900 font-bold rounded-2xl hover:bg-neutral-50 transition-all text-sm"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                        Back
+                      </button>
+                    )}
+                    {step < 6 && (
+                      <button
+                        type="button"
+                        onClick={nextStep}
+                        disabled={!canProceed()}
+                        className={`flex-1 text-white font-bold py-4 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-all ${
+                          summaryLight
+                            ? "bg-neutral-900 hover:bg-neutral-800 shadow-lg shadow-neutral-900/10"
+                            : "bg-blue-600 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700"
+                        }`}
+                      >
+                        {step === 5 ? (
+                          "Confirm booking"
+                        ) : (
+                          <>
+                            {`Continue to ${STEP_LABELS[step]}`}
+                            <ChevronRight className="w-5 h-5" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  {step === 5 && (
+                    <p className="text-center text-[11px] text-neutral-400">
+                      No commitment · Cancel anytime · Free rescheduling
+                    </p>
                   )}
                 </div>
               )}
             </div>
           </div>
 
-          {step < 5 && (
+          {step <= 6 && (
           <aside className="hidden lg:block sticky top-6 z-10 self-start space-y-6">
-            <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-2xl">
-              <div className="flex items-center gap-2 opacity-60 mb-1">
+            {step === 5 ? (
+            <div className="rounded-2xl p-6 bg-white text-neutral-900 border border-neutral-100 shadow-[0_8px_40px_rgba(0,0,0,0.06)]">
+              <h3 className="text-base font-bold text-neutral-900 mb-4">Order summary</h3>
+              <div className="space-y-3 text-[11px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-neutral-500 shrink-0">Service</span>
+                  <span className="font-semibold text-neutral-900 text-right">
+                    {serviceTitleForSummary(data.service)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-neutral-500 shrink-0">Frequency</span>
+                  <span className="font-semibold text-neutral-900 text-right">
+                    {frequencyLabelForSummary}
+                    {data.cleaningFrequency === "multi_week" &&
+                      data.cleaningDays.length > 0 &&
+                      ` · ${data.cleaningDays.join(", ")}`}
+                  </span>
+                </div>
+                {data.service !== "carpet" && data.propertyType !== "office" && (
+                  <>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-neutral-500">Bedrooms</span>
+                      <span className="font-semibold text-neutral-900">{data.bedrooms}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-neutral-500">Bathrooms</span>
+                      <span className="font-semibold text-neutral-900">{data.bathrooms}</span>
+                    </div>
+                  </>
+                )}
+                {showEquipmentChoice && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-neutral-500 shrink-0">Equipment</span>
+                    <span className="font-semibold text-neutral-900 text-right">
+                      {data.equipmentMode === "shalean"
+                        ? "Shalean supplies"
+                        : "Your supplies"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-neutral-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-3">
+                  Cost breakdown
+                </p>
+                <div className="flex justify-between text-[11px] mb-2">
+                  <span className="text-neutral-500">Base rate</span>
+                  <span className="font-medium tabular-nums">R{pricing.basePrice}</span>
+                </div>
+                <div className="flex justify-between text-[11px] mb-2 gap-2">
+                  <span className="text-neutral-500">
+                    {data.service === "carpet"
+                      ? "Carpet & rugs"
+                      : data.propertyType === "office"
+                        ? "Office & rooms"
+                        : `Rooms (${data.bedrooms}bd · ${data.bathrooms}ba)`}
+                  </span>
+                  <span className="font-medium tabular-nums shrink-0">R{pricingRoomLine}</span>
+                </div>
+                {pricing.extrasTotal > 0 && (
+                  <div className="flex justify-between text-[11px] mb-2">
+                    <span className="text-neutral-500">Extras</span>
+                    <span className="font-medium tabular-nums">R{pricing.extrasTotal}</span>
+                  </div>
+                )}
+                {serviceEquipmentFee > 0 && (
+                  <div className="flex justify-between text-[11px] mb-2">
+                    <span className="text-neutral-500">Service &amp; equipment</span>
+                    <span className="font-medium tabular-nums">R{serviceEquipmentFee}</span>
+                  </div>
+                )}
+                {(pricing.peakCharge > 0 || pricing.weekendCharge > 0) && (
+                  <div className="flex justify-between text-[11px] text-amber-800 mb-1">
+                    <span>Peak / weekend</span>
+                    <span className="font-medium tabular-nums">
+                      +R{pricing.peakCharge + pricing.weekendCharge}
+                    </span>
+                  </div>
+                )}
+                {pricing.areaMultiplier !== 1 && (
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-neutral-500">Area factor</span>
+                    <span className="font-medium">×{pricing.areaMultiplier}</span>
+                  </div>
+                )}
+                {pricing.discountAmount > 0 && (
+                  <div className="flex justify-between text-[11px] text-emerald-700 mb-1">
+                    <span>
+                      Discounts
+                      {data.promoCode ? ` (${data.promoCode})` : ""}
+                    </span>
+                    <span className="font-bold">−R{pricing.discountAmount}</span>
+                  </div>
+                )}
+                {pricing.tipAmount > 0 && (
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-neutral-500">Tip</span>
+                    <span className="font-medium">R{pricing.tipAmount}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 flex items-end justify-between pt-4 border-t border-neutral-100">
+                <span className="text-sm font-bold text-neutral-900">Estimated total</span>
+                <span className="text-2xl font-black text-neutral-900 tabular-nums">R{pricing.total}</span>
+              </div>
+              <p className="text-[10px] text-neutral-500 mt-4 leading-relaxed">
+                The price is confirmed after submission. All amounts in South African Rand (ZAR).
+              </p>
+            </div>
+            ) : (
+            <div
+              className={`rounded-2xl p-6 shadow-xl ${
+                summaryLight
+                  ? "bg-white text-neutral-900 border border-neutral-100 shadow-[0_8px_40px_rgba(0,0,0,0.06)]"
+                  : "bg-slate-900 text-white shadow-2xl rounded-3xl"
+              }`}
+            >
+              <div
+                className={`flex items-center gap-2 mb-1 ${summaryLight ? "text-neutral-500" : "opacity-60"}`}
+              >
                 <CreditCard className="w-4 h-4" />
                 <span className="text-[10px] font-black uppercase tracking-widest">
-                  Order Summary
+                  Order summary
                 </span>
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black">R{pricing.total}</span>
-                <span className="text-xs opacity-40 ml-1">Total Estimate</span>
+              <div className="flex flex-col gap-1">
+                <span className={`text-xs font-semibold ${summaryLight ? "text-neutral-500" : "opacity-40"}`}>
+                  Estimated total
+                </span>
+                <span className={`text-4xl font-black ${summaryLight ? "text-neutral-900" : ""}`}>
+                  R{pricing.total}
+                </span>
               </div>
 
               <div className="mt-6 space-y-3.5">
-                <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                  <span className="opacity-50">Service</span>
+                <div
+                  className={`flex justify-between text-[11px] pb-2 border-b ${
+                    summaryLight ? "border-neutral-100" : "border-white/5"
+                  }`}
+                >
+                  <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Service</span>
                   <span className="font-bold">
                     {SERVICES.find((s) => s.id === data.service)?.title}
                   </span>
                 </div>
                 {data.service !== "carpet" && data.propertyType !== "office" && (
-                  <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                    <span className="opacity-50">Home details</span>
+                  <div
+                    className={`flex justify-between text-[11px] pb-2 border-b ${
+                      summaryLight ? "border-neutral-100" : "border-white/5"
+                    }`}
+                  >
+                    <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Home details</span>
                     <span className="font-bold text-right">
                       {data.bedrooms} bedroom{data.bedrooms !== 1 ? "s" : ""} ·{" "}
                       {data.bathrooms} bathroom{data.bathrooms !== 1 ? "s" : ""} ·{" "}
@@ -3401,35 +4424,69 @@ export const BookingSystem = ({
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                  <span className="opacity-50">Frequency</span>
+                <div
+                  className={`flex justify-between text-[11px] pb-2 border-b ${
+                    summaryLight ? "border-neutral-100" : "border-white/5"
+                  }`}
+                >
+                  <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Frequency</span>
                   <span className="font-bold text-right">
                     {data.cleaningFrequency === "once"
                       ? "Once"
                       : data.cleaningFrequency === "weekly"
                       ? "Weekly"
-                      : "Multiple times a week"}
+                      : data.cleaningFrequency === "bi_weekly"
+                      ? "Bi-weekly"
+                      : data.cleaningFrequency === "monthly"
+                      ? "Monthly"
+                      : "Custom"}
                     {data.cleaningFrequency === "multi_week" &&
                       data.cleaningDays.length > 0 &&
                       ` · ${data.cleaningDays.join(", ")}`}
                   </span>
                 </div>
-                <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                  <span className="opacity-50">Schedule</span>
+                {showEquipmentChoice && (
+                  <div
+                    className={`flex justify-between text-[11px] pb-2 border-b ${
+                      summaryLight ? "border-neutral-100" : "border-white/5"
+                    }`}
+                  >
+                    <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Equipment</span>
+                    <span className="font-bold text-right">
+                      {data.equipmentMode === "shalean"
+                        ? "We bring supplies"
+                        : "Your supplies"}
+                    </span>
+                  </div>
+                )}
+                <div
+                  className={`flex justify-between text-[11px] pb-2 border-b ${
+                    summaryLight ? "border-neutral-100" : "border-white/5"
+                  }`}
+                >
+                  <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Schedule</span>
                   <span className="font-bold text-right">
                     {data.date ? formatDate(data.date) : "Not set"}
                     {data.time && data.date && ` · ${data.time}`}
                   </span>
                 </div>
-                <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                  <span className="opacity-50">Estimated duration</span>
+                <div
+                  className={`flex justify-between text-[11px] pb-2 border-b ${
+                    summaryLight ? "border-neutral-100" : "border-white/5"
+                  }`}
+                >
+                  <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Estimated duration</span>
                   <span className="font-bold">
                     {formatEstimatedDuration(pricing.estimatedDurationMinutes ?? 210)}
                   </span>
                 </div>
                 {data.propertyType === "office" && (
-                  <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                    <span className="opacity-50">Office details</span>
+                  <div
+                    className={`flex justify-between text-[11px] pb-2 border-b ${
+                      summaryLight ? "border-neutral-100" : "border-white/5"
+                    }`}
+                  >
+                    <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Office details</span>
                     <span className="font-bold text-right">
                       {data.privateOffices} private · {data.meetingRooms} rooms
                       {data.officeSize &&
@@ -3446,8 +4503,12 @@ export const BookingSystem = ({
                   </div>
                 )}
                 {data.service === "carpet" && (
-                  <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                    <span className="opacity-50">Carpet details</span>
+                  <div
+                    className={`flex justify-between text-[11px] pb-2 border-b ${
+                      summaryLight ? "border-neutral-100" : "border-white/5"
+                    }`}
+                  >
+                    <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Carpet details</span>
                     <span className="font-bold text-right">
                       {data.carpetedRooms} rooms · {data.looseRugs} rugs ·{" "}
                       {data.carpetExtraCleaners} extra cleaner
@@ -3455,16 +4516,24 @@ export const BookingSystem = ({
                   </div>
                 )}
                 {data.extras.length > 0 && (
-                  <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                    <span className="opacity-50">Extras</span>
+                  <div
+                    className={`flex justify-between text-[11px] pb-2 border-b ${
+                      summaryLight ? "border-neutral-100" : "border-white/5"
+                    }`}
+                  >
+                    <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Extras</span>
                     <span className="font-bold">
                       {data.extras.length} items (R{pricing.extrasTotal})
                     </span>
                   </div>
                 )}
                 {(data.cleanerId || data.teamId) && (
-                  <div className="flex justify-between text-[11px] pb-2 border-b border-white/5">
-                    <span className="opacity-50">Professional</span>
+                  <div
+                    className={`flex justify-between text-[11px] pb-2 border-b ${
+                      summaryLight ? "border-neutral-100" : "border-white/5"
+                    }`}
+                  >
+                    <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Professional</span>
                     <span className="font-bold">
                       {data.cleanerId
                         ? data.cleanerId === "any"
@@ -3477,15 +4546,45 @@ export const BookingSystem = ({
                   </div>
                 )}
 
-                <div className="pt-2 space-y-2">
+                <div className="pt-4 space-y-2">
+                  <p
+                    className={`text-[10px] font-black uppercase tracking-widest mb-2 ${
+                      summaryLight ? "text-neutral-400" : "text-white/40"
+                    }`}
+                  >
+                    Cost breakdown
+                  </p>
                   <div className="flex justify-between text-[11px]">
-                    <span className="opacity-50">Subtotal</span>
+                    <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Base &amp; rooms</span>
                     <span className="font-medium">R{pricing.subtotal}</span>
                   </div>
+                  {(pricing.peakCharge > 0 || pricing.weekendCharge > 0) && (
+                    <div
+                      className={`flex justify-between text-[11px] ${
+                        summaryLight ? "text-amber-800" : "text-amber-200/90"
+                      }`}
+                    >
+                      <span className={summaryLight ? "text-amber-800/80" : "opacity-70"}>Peak / weekend</span>
+                      <span className="font-medium">
+                        +R{pricing.peakCharge + pricing.weekendCharge}
+                      </span>
+                    </div>
+                  )}
+                  {pricing.areaMultiplier !== 1 && (
+                    <div className="flex justify-between text-[11px]">
+                      <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Area factor</span>
+                      <span className="font-medium">×{pricing.areaMultiplier}</span>
+                    </div>
+                  )}
                   {pricing.discountAmount > 0 && (
-                    <div className="flex justify-between text-[11px] text-emerald-400">
-                      <span className="opacity-70 text-white">
-                        Discount ({data.promoCode})
+                    <div
+                      className={`flex justify-between text-[11px] ${
+                        summaryLight ? "text-emerald-700" : "text-emerald-400"
+                      }`}
+                    >
+                      <span className={summaryLight ? "text-emerald-800/90" : "opacity-70 text-white"}>
+                        Discounts
+                        {data.promoCode ? ` (${data.promoCode})` : ""}
                       </span>
                       <span className="font-bold">
                         -R{pricing.discountAmount}
@@ -3494,28 +4593,42 @@ export const BookingSystem = ({
                   )}
                   {pricing.tipAmount > 0 && (
                     <div className="flex justify-between text-[11px]">
-                      <span className="opacity-50">Tip</span>
+                      <span className={summaryLight ? "text-neutral-500" : "opacity-50"}>Tip</span>
                       <span className="font-medium">R{pricing.tipAmount}</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="mt-8 bg-white/10 rounded-2xl p-4 flex items-start gap-3">
-                <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                <p className="text-[10px] leading-relaxed opacity-80">
-                  Your booking is protected by our 100% Satisfaction Guarantee.
-                  We&apos;ll re-clean for free if you&apos;re not happy.
+              <div
+                className={`mt-6 rounded-xl p-4 flex items-start gap-3 ${
+                  summaryLight
+                    ? "bg-neutral-50 border border-neutral-100"
+                    : "bg-white/10"
+                }`}
+              >
+                <ShieldCheck
+                  className={`w-5 h-5 flex-shrink-0 ${
+                    summaryLight ? "text-emerald-600" : "text-emerald-400"
+                  }`}
+                />
+                <p
+                  className={`text-[10px] leading-relaxed ${
+                    summaryLight ? "text-neutral-600" : "opacity-80"
+                  }`}
+                >
+                  Final price is confirmed before payment. All amounts in South African Rand (ZAR).
                 </p>
               </div>
             </div>
+            )}
 
           </aside>
           )}
         </div>
       </main>
 
-      {step < 5 && step !== 4 && (
+      {step <= 5 && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 z-40 pb-8">
           <div className="flex items-center gap-3">
             <Sheet>
@@ -3569,7 +4682,11 @@ export const BookingSystem = ({
                           ? "Once"
                           : data.cleaningFrequency === "weekly"
                           ? "Weekly"
-                          : "Multiple times a week"}
+                          : data.cleaningFrequency === "bi_weekly"
+                          ? "Bi-weekly"
+                          : data.cleaningFrequency === "monthly"
+                          ? "Monthly"
+                          : "Custom"}
                         {data.cleaningFrequency === "multi_week" &&
                           data.cleaningDays.length > 0 &&
                           ` · ${data.cleaningDays.join(", ")}`}
@@ -3645,7 +4762,8 @@ export const BookingSystem = ({
                       {pricing.discountAmount > 0 && (
                         <div className="flex justify-between text-emerald-600">
                           <span className="opacity-80">
-                            Discount ({data.promoCode})
+                            Discounts
+                            {data.promoCode ? ` (${data.promoCode})` : ""}
                           </span>
                           <span className="font-bold">
                             -R{pricing.discountAmount}
@@ -3664,13 +4782,31 @@ export const BookingSystem = ({
               </SheetContent>
             </Sheet>
             <button
+              type="button"
               onClick={nextStep}
               disabled={!canProceed()}
-              className="min-w-[140px] bg-blue-600 text-white font-black py-3 px-6 rounded-2xl shadow-xl shadow-blue-200"
+              className={`min-w-[140px] text-white font-bold py-3 px-6 rounded-xl shadow-lg disabled:opacity-50 ${
+                summaryLight
+                  ? "bg-neutral-900 hover:bg-neutral-800 shadow-neutral-900/15"
+                  : "bg-blue-600 rounded-2xl shadow-xl shadow-blue-200"
+              }`}
             >
-              Continue
+              {step === 5 ? "Confirm booking" : "Continue"}
             </button>
           </div>
+        </div>
+      )}
+
+      {step === 6 && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 z-40 pb-8">
+          <button
+            type="button"
+            onClick={prevStep}
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 border-2 border-slate-200 text-slate-700 font-black rounded-2xl hover:bg-slate-50"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            Back
+          </button>
         </div>
       )}
     </div>

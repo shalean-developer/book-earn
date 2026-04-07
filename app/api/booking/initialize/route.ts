@@ -34,6 +34,7 @@ interface BookingFormPayload {
   apartmentUnit: string;
   instructions: string;
   promoCode: string;
+  equipmentMode?: "shalean" | "customer";
 }
 
 function mapToBookingRecord(
@@ -206,6 +207,10 @@ export async function POST(req: NextRequest) {
       tipAmount: (clientPricing && clientPricing.tipAmount) ?? 0,
       promoCode: booking.promoCode,
       cleaningFrequency: booking.cleaningFrequency,
+      date: booking.date,
+      time: booking.time,
+      workingArea: booking.workingArea,
+      equipmentMode: booking.equipmentMode,
     });
 
     const estimatedDurationMinutes = computeEstimatedDurationMinutes({

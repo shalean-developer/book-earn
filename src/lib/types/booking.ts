@@ -12,11 +12,20 @@ export interface PricingBreakdown {
   extrasTotal: number;
   tipAmount: number;
   discountAmount: number;
-   /** Per-booking fees pulled from pricing_config, if configured. */
+  /** Per-booking fees pulled from pricing_config, if configured. */
   serviceFee: number;
   equipmentCharge: number;
+  /** Line items before peak/weekend surcharges (same as legacy "subtotal" pre-surcharge). */
   subtotal: number;
   total: number;
+  /** +15% of line subtotal when peak hours apply */
+  peakCharge?: number;
+  /** +10% of line subtotal when weekend */
+  weekendCharge?: number;
+  /** Applied area multiplier (e.g. 1.05) */
+  areaMultiplier?: number;
+  /** After surcharges and area, before frequency/promo discounts */
+  afterAreaSubtotal?: number;
   /** Estimated duration in minutes (min 3.5h), when computed. */
   estimatedDurationMinutes?: number;
 }

@@ -156,13 +156,13 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
               <div className="flex flex-col justify-center p-6 md:p-8 lg:p-10 lg:max-w-[55%] order-2 lg:order-1">
                 <div className="inline-flex items-center gap-2 bg-white/10 text-white px-4 py-1.5 rounded-full text-xs md:text-sm font-medium mb-4">
                   <Sparkles className="w-4 h-4" />
-                  <span>Inside Shalean Cleaning Services</span>
+                  <span>Inside Bokkies</span>
                 </div>
                 <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 md:mb-6">
                   People-first home cleaning services in Cape Town.
                 </h1>
                 <p className="text-sm md:text-base text-white/90 leading-relaxed max-w-xl mb-4 md:mb-6">
-                  Shalean Cleaning Services is a Cape Town-based home and Airbnb cleaning company,
+                  Bokkies is a Cape Town-based home and Airbnb cleaning company,
                   trusted for professional, reliable service and a team built on trust, care, and consistency.
                 </p>
 
@@ -236,7 +236,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
               </h2>
               <div className="space-y-4 text-slate-600 leading-relaxed">
                 <p>
-                  Shalean Cleaning Services was founded in Cape Town with a simple but
+                  Bokkies was founded in Cape Town with a simple but
                   powerful idea: every home deserves to be cleaned by someone who
                   genuinely cares. We saw a gap in the market for professional home
                   cleaning services that weren&apos;t unreliable, overpriced, or failing
@@ -245,7 +245,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
                 <p>
                   We started small, serving a handful of homes in Sea Point and Gardens,
                   and grew steadily through word of mouth — one satisfied client at a
-                  time. Today, Shalean serves hundreds of homes across Cape Town&apos;s
+                  time. Today, Bokkies serves hundreds of homes across Cape Town&apos;s
                   most sought-after suburbs, from Constantia to Durbanville, Claremont to
                   Century City.
                 </p>

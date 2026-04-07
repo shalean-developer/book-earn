@@ -14,7 +14,14 @@ type PricingRow = {
   is_active: boolean;
 };
 
-const SERVICE_OPTIONS = ["Standard", "Deep", "Airbnb", "Carpet", "Move In/Out"];
+const SERVICE_OPTIONS = [
+  "Standard",
+  "Deep",
+  "Airbnb",
+  "Laundry & Ironing",
+  "Carpet",
+  "Move In/Out",
+];
 
 const knownPriceTypes = [
   "base",
@@ -43,6 +50,12 @@ const extrasIds = [
   "cabinets",
   "walls",
   "extra_cleaner",
+  "laundry_load",
+  "ironing",
+  "linen_refresh",
+  "guest_supplies",
+  "delicates",
+  "stain_treatment",
   "equipment",
   "balcony",
   "carpet_deep",
