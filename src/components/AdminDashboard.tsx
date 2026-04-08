@@ -200,7 +200,7 @@ const StatCard = ({ title, value, change, trend, icon }: StatCardProps) => (
       <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">{icon}</div>
       <span
         className={`text-xs font-bold px-2 py-1 rounded-full ${
-          trend === "up" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+          trend === "up" ? "bg-teal-50 text-teal-600" : "bg-rose-50 text-rose-600"
         }`}
       >
         {change}
@@ -214,9 +214,9 @@ const StatCard = ({ title, value, change, trend, icon }: StatCardProps) => (
 const Badge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
     upcoming: "bg-blue-50 text-blue-600",
-    completed: "bg-emerald-50 text-emerald-600",
+    completed: "bg-teal-50 text-teal-600",
     cancelled: "bg-rose-50 text-rose-600",
-    active: "bg-emerald-50 text-emerald-600",
+    active: "bg-teal-50 text-teal-600",
     "on-leave": "bg-amber-50 text-amber-600",
     pending: "bg-amber-50 text-amber-600",
     confirmed: "bg-blue-50 text-blue-600",
@@ -366,7 +366,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
   const [customerDetailPage, setCustomerDetailPage] = useState(1);
   const [customerDetailPageSize, setCustomerDetailPageSize] = useState(5);
   const [settings, setSettings] = useState({
-    companyName: "Bokkies",
+    companyName: "Shalean Cleaning Services",
     defaultCity: "Cape Town",
     workingHours: "08:00 - 18:00",
     sameDayBookings: false,
@@ -2588,11 +2588,11 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
               </div>
 
               {bookCreateSuccess && (
-                <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 flex flex-wrap items-center justify-between gap-2">
+                <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800 flex flex-wrap items-center justify-between gap-2">
                   <span>Booking created: <strong>{bookCreateSuccess.reference}</strong></span>
                   <button
                     type="button"
-                    className="text-emerald-700 font-semibold underline"
+                    className="text-teal-700 font-semibold underline"
                     onClick={() => setBookCreateSuccess(null)}
                   >
                     Dismiss
@@ -2902,7 +2902,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                         type="button"
                         disabled={bookCreateLoading}
                         onClick={handleAdminBookCreate}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 disabled:opacity-70"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-70"
                       >
                         {bookCreateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                         {bookCreateLoading ? "Creating..." : "Create booking"}
@@ -3480,7 +3480,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                                   Delete
                                 </button>
                                 {copiedCustomerEmail === customer.email && (
-                                  <span className="text-[10px] font-semibold text-emerald-600">
+                                  <span className="text-[10px] font-semibold text-teal-600">
                                     Copied
                                   </span>
                                 )}
@@ -3596,7 +3596,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                           <div className="flex flex-col items-end gap-2">
                             <Badge status={review.status} />
                             <div className="flex gap-2 mt-1">
-                              <button className="text-[11px] font-semibold text-emerald-600 hover:underline">
+                              <button className="text-[11px] font-semibold text-teal-600 hover:underline">
                                 Publish
                               </button>
                               <button className="text-[11px] font-semibold text-amber-600 hover:underline">
@@ -3626,13 +3626,13 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-500 w-8">5★</span>
                           <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="w-4/5 h-full bg-emerald-500" />
+                            <div className="w-4/5 h-full bg-teal-500" />
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-500 w-8">4★</span>
                           <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="w-1/5 h-full bg-emerald-400" />
+                            <div className="w-1/5 h-full bg-teal-400" />
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -4724,7 +4724,7 @@ export const AdminDashboard = ({ onBack }: { onBack: () => void }) => {
                       {profileCleanerDetail.verification_status !== "verified" && (
                         <button
                           type="button"
-                          className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                          className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
                           onClick={() => handleSetCleanerStatus("verified")}
                         >
                           Activate

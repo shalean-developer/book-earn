@@ -3,13 +3,13 @@ import { ShaleanWebsite } from "@/components/ShaleanWebsite";
 import { SITE_URL } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Pricing – Bokkies",
+  title: "Pricing – Shalean Cleaning Services",
   description:
     "Transparent pricing for home, office and Airbnb cleaning in Cape Town. Book online with no hidden fees.",
   alternates: { canonical: `${SITE_URL}/pricing` },
   openGraph: {
     url: `${SITE_URL}/pricing`,
-    title: "Pricing – Bokkies",
+    title: "Pricing – Shalean Cleaning Services",
     description:
       "Transparent pricing for home, office and Airbnb cleaning in Cape Town. Book online with no hidden fees.",
     type: "website",

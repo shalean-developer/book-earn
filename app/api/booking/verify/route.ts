@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import type { BookingRecord, PricingBreakdown } from "@/lib/types/booking";
-import { sendBookingEmails } from "@/lib/email";
+import { looksLikeUuid, sendBookingEmails } from "@/lib/email";
 
 interface VerifyResponse {
   status: string;
@@ -130,9 +130,27 @@ export async function POST(req: NextRequest) {
       total: updatedBooking.total_amount,
     };
 
+    let cleanerDisplayName: string | null = null;
+    const rawCleanerId = updatedBooking.cleaner_id;
+    if (rawCleanerId != null) {
+      const cid = String(rawCleanerId).trim();
+      if (looksLikeUuid(cid)) {
+        const { data: cleanerProfile } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", cid)
+          .maybeSingle();
+        const n = cleanerProfile?.name;
+        if (n != null && String(n).trim()) {
+          cleanerDisplayName = String(n).trim();
+        }
+      }
+    }
+
     await sendBookingEmails({
-      booking: updatedBooking,
+      booking: updatedBooking as BookingRecord,
       pricing,
+      cleanerDisplayName,
     });
 
     return NextResponse.json(

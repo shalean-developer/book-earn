@@ -3,14 +3,14 @@ import { ShaleanWebsite } from "@/components/ShaleanWebsite";
 import { SITE_URL } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Blog – Bokkies",
+  title: "Blog – Shalean Cleaning Services",
   description:
-    "Cleaning tips, guides and updates from Bokkies in Cape Town.",
+    "Cleaning tips, guides and updates from Shalean Cleaning Services in Cape Town.",
   alternates: { canonical: `${SITE_URL}/blog` },
   openGraph: {
     url: `${SITE_URL}/blog`,
-    title: "Blog – Bokkies",
-    description: "Cleaning tips, guides and updates from Bokkies in Cape Town.",
+    title: "Blog – Shalean Cleaning Services",
+    description: "Cleaning tips, guides and updates from Shalean Cleaning Services in Cape Town.",
     type: "website",
   },
 };

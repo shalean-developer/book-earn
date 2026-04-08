@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
 import {
   Facebook,
   Twitter,
@@ -52,7 +53,19 @@ const social = [
 const linkClass =
   "text-neutral-400 transition hover:text-white text-sm leading-relaxed";
 
+function dashboardHrefForRole(role: string | undefined): string | null {
+  if (role === "admin") return "/admin";
+  if (role === "customer") return "/customer";
+  if (role === "cleaner") return "/cleaner";
+  return null;
+}
+
 const Footer = () => {
+  const { data: session, status } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const dashboardHref = dashboardHrefForRole(role);
+  const isAuthed = status === "authenticated";
+
   return (
     <footer className="bg-[#0a0a0a] text-neutral-400">
       <div className="max-w-7xl mx-auto w-full px-6 pt-8 pb-10 md:pt-10 md:pb-12">
@@ -72,7 +85,7 @@ const Footer = () => {
             </p>
             <div className="flex items-center gap-2 text-sm text-neutral-400">
               <span
-                className="h-2 w-2 shrink-0 rounded-full bg-emerald-500"
+                className="h-2 w-2 shrink-0 rounded-full bg-teal-500"
                 aria-hidden
               />
               <span>
@@ -94,7 +107,50 @@ const Footer = () => {
           </div>
 
           {/* Link columns */}
-          <div className="grid grid-cols-2 gap-10 sm:grid-cols-2 md:gap-12 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-10 sm:grid-cols-2 md:gap-12 lg:grid-cols-5">
+            <div>
+              <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Account
+              </h3>
+              <ul className="space-y-2.5">
+                {isAuthed && dashboardHref ? (
+                  <>
+                    <li>
+                      <Link href={dashboardHref} className={linkClass}>
+                        My dashboard
+                      </Link>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => signOut({ callbackUrl: "/" })}
+                        className={`${linkClass} text-left w-full bg-transparent border-0 p-0 cursor-pointer`}
+                      >
+                        Sign out
+                      </button>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>
+                      <Link href="/login" className={linkClass}>
+                        Sign in
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/signup" className={linkClass}>
+                        Create account
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/login" className={linkClass}>
+                        Cleaner &amp; admin login
+                      </Link>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </div>
             <div>
               <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
                 Services
@@ -156,7 +212,7 @@ const Footer = () => {
 
         <div className="mt-12 flex flex-col gap-4 border-t border-neutral-800/90 pt-8 text-xs text-neutral-500 md:flex-row md:items-center md:justify-between">
           <p>
-            © 2026 Bokkies Technologies Inc. All rights
+            © 2026 Shalean Cleaning Services Inc. All rights
             reserved.
           </p>
           <div className="flex items-center gap-1.5 text-neutral-500">

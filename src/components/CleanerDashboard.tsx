@@ -286,7 +286,7 @@ const JobCard = ({
     >
       <div className="p-5 flex justify-between items-start">
         <div className="flex gap-4">
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
             <Sparkles className="w-6 h-6" />
           </div>
           <div>
@@ -383,7 +383,7 @@ const JobCard = ({
               onStatusUpdate();
             }}
             disabled={startJobLoading}
-            className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-sm shadow-md hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-sm shadow-md hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {startJobLoading ? "Updating…" : actionLabel}
           </button>
@@ -1027,7 +1027,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
         </div>
 
         <div className="flex items-center gap-3 mt-4 sm:mt-5 mb-4 sm:mb-6">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 font-bold border border-emerald-200 text-sm flex-shrink-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold border border-blue-200 text-sm flex-shrink-0">
             {displayName
               .split(" ")
               .map((part) => part[0])
@@ -1395,7 +1395,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
               <>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                   <div className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 font-black text-xl border border-emerald-200 flex-shrink-0">
+                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 font-black text-xl border border-blue-200 flex-shrink-0">
                       {(cleanerProfile?.name || displayName)
                         .split(" ")
                         .map((part) => part[0])
@@ -1543,7 +1543,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                   <p className="text-sm text-rose-600 px-2">{profileSaveError}</p>
                 )}
                 {profileSaveSuccess && (
-                  <p className="text-sm text-emerald-600 px-2 flex items-center gap-2">
+                  <p className="text-sm text-blue-600 px-2 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4" /> Saved successfully.
                   </p>
                 )}
@@ -1680,7 +1680,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                       type="button"
                       onClick={() => handleStatusUpdate(selectedJob)}
                       disabled={startJobLoadingId === selectedJob.id}
-                      className="flex-1 min-w-[120px] bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-70"
+                      className="flex-1 min-w-[120px] bg-blue-600 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-70"
                     >
                       {startJobLoadingId === selectedJob.id ? "Updating…" : STATUS_BUTTON_LABEL[selectedJob.status]}
                     </button>
@@ -1840,7 +1840,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                       setRatingSaving(false);
                     }
                   }}
-                  className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-70"
+                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-70"
                 >
                   {ratingSaving ? "Submitting…" : "Submit rating"}
                 </button>
@@ -1903,7 +1903,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                           <div
                             className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
                               m.senderType === "cleaner"
-                                ? "bg-emerald-600 text-white rounded-br-md"
+                                ? "bg-blue-600 text-white rounded-br-md"
                                 : "bg-white border border-slate-200 text-slate-800 rounded-bl-md"
                             }`}
                           >
@@ -1911,7 +1911,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                               <p className="text-[10px] font-semibold text-slate-500 mb-0.5">Customer</p>
                             )}
                             <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                            <p className={`text-[10px] mt-1 ${m.senderType === "cleaner" ? "text-emerald-200" : "text-slate-400"}`}>
+                            <p className={`text-[10px] mt-1 ${m.senderType === "cleaner" ? "text-blue-200" : "text-slate-400"}`}>
                               {m.createdAt
                                 ? new Date(m.createdAt).toLocaleString("en-ZA", {
                                     month: "short",
@@ -1922,7 +1922,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                                 : ""}
                             </p>
                             {m.senderType === "cleaner" && (
-                              <p className="text-[10px] mt-0.5 text-emerald-200/90">
+                              <p className="text-[10px] mt-0.5 text-blue-200/90">
                                 {m.status === "read" ? "Read" : m.status === "delivered" ? "Delivered" : "Sent"}
                               </p>
                             )}
@@ -1934,7 +1934,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                 </div>
                 <label className="block text-xs font-semibold text-slate-500">Your reply</label>
                 <textarea
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 min-h-[80px]"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 min-h-[80px]"
                   placeholder="Reply to the customer…"
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
@@ -1992,7 +1992,7 @@ export const CleanerDashboard = ({ onBack }: { onBack: () => void }) => {
                         setMessageSaving(false);
                       }
                     }}
-                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {messageSaving ? "Sending…" : "Send message"}
                   </button>

@@ -156,13 +156,13 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
               <div className="flex flex-col justify-center p-6 md:p-8 lg:p-10 lg:max-w-[55%] order-2 lg:order-1">
                 <div className="inline-flex items-center gap-2 bg-white/10 text-white px-4 py-1.5 rounded-full text-xs md:text-sm font-medium mb-4">
                   <Sparkles className="w-4 h-4" />
-                  <span>Inside Bokkies</span>
+                  <span>Inside Shalean Cleaning Services</span>
                 </div>
                 <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 md:mb-6">
                   People-first home cleaning services in Cape Town.
                 </h1>
                 <p className="text-sm md:text-base text-white/90 leading-relaxed max-w-xl mb-4 md:mb-6">
-                  Bokkies is a Cape Town-based home and Airbnb cleaning company,
+                  Shalean Cleaning Services is a Cape Town-based home and Airbnb cleaning company,
                   trusted for professional, reliable service and a team built on trust, care, and consistency.
                 </p>
 
@@ -205,7 +205,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
                     </p>
                     <div className="flex items-center justify-between text-xs text-slate-600">
                       <span className="inline-flex items-center gap-1">
-                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                        <ShieldCheck className="w-4 h-4 text-teal-500" />
                         Vetted & insured
                       </span>
                       <span className="inline-flex items-center gap-1">
@@ -236,7 +236,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
               </h2>
               <div className="space-y-4 text-slate-600 leading-relaxed">
                 <p>
-                  Bokkies was founded in Cape Town with a simple but
+                  Shalean Cleaning Services was founded in Cape Town with a simple but
                   powerful idea: every home deserves to be cleaned by someone who
                   genuinely cares. We saw a gap in the market for professional home
                   cleaning services that weren&apos;t unreliable, overpriced, or failing
@@ -245,7 +245,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
                 <p>
                   We started small, serving a handful of homes in Sea Point and Gardens,
                   and grew steadily through word of mouth — one satisfied client at a
-                  time. Today, Bokkies serves hundreds of homes across Cape Town&apos;s
+                  time. Today, Shalean Cleaning Services serves hundreds of homes across Cape Town&apos;s
                   most sought-after suburbs, from Constantia to Durbanville, Claremont to
                   Century City.
                 </p>
@@ -444,7 +444,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
                       "Hands-on skills assessment",
                     ].map((item, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-teal-500 flex-shrink-0" />
                         <span className="text-xs font-medium text-slate-700">
                           {item}
                         </span>
@@ -467,7 +467,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
                       "Fully insured for peace of mind",
                     ].map((item, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-teal-500 flex-shrink-0" />
                         <span className="text-xs font-medium text-slate-700">
                           {item}
                         </span>

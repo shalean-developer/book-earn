@@ -11,7 +11,7 @@ type AdminSettings = {
 };
 
 const DEFAULT_SETTINGS: AdminSettings = {
-  companyName: "Bokkies",
+  companyName: "Shalean Cleaning Services",
   defaultCity: "Cape Town",
   workingHours: "08:00 - 18:00",
   sameDayBookings: false,

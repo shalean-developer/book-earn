@@ -5,15 +5,15 @@ import { Tag, Calendar, ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Current offers – Bokkies",
+  title: "Current offers – Shalean Cleaning Services",
   description:
-    "View current promotions and offers from Bokkies in Cape Town.",
+    "View current promotions and offers from Shalean Cleaning Services in Cape Town.",
   alternates: { canonical: `${SITE_URL}/promotions` },
   openGraph: {
     url: `${SITE_URL}/promotions`,
-    title: "Current offers – Bokkies",
+    title: "Current offers – Shalean Cleaning Services",
     description:
-      "View current promotions and offers from Bokkies in Cape Town.",
+      "View current promotions and offers from Shalean Cleaning Services in Cape Town.",
     type: "website",
   },
 };

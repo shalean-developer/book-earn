@@ -309,7 +309,7 @@ function LoginPageContent() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-md hover:bg-emerald-700 disabled:opacity-60"
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-60"
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -329,7 +329,7 @@ function LoginPageContent() {
 
         <aside className="hidden md:flex flex-col gap-6 bg-slate-950 text-slate-50 p-8 justify-between">
           <div>
-            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-[0.2em] mb-4">
+            <p className="text-xs font-semibold text-blue-400 uppercase tracking-[0.2em] mb-4">
               Trusted Cape Town Cleaning
             </p>
             <h2 className="text-2xl font-black mb-3">
@@ -350,7 +350,7 @@ function LoginPageContent() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Smartphone className="w-4 h-4 text-emerald-300" />
+              <Smartphone className="w-4 h-4 text-blue-300" />
               <p className="text-slate-300">
                 <strong>Cleaners</strong> log in with their phone, view today’s
                 jobs and earnings.

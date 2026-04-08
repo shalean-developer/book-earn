@@ -212,7 +212,7 @@ function SignupForm() {
 
         <aside className="hidden md:flex flex-col gap-6 bg-slate-950 text-slate-50 p-8 justify-between">
           <div>
-            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-[0.2em] mb-4">
+            <p className="text-xs font-semibold text-blue-400 uppercase tracking-[0.2em] mb-4">
               Trusted Cape Town Cleaning
             </p>
             <h2 className="text-2xl font-black mb-3">
@@ -232,7 +232,7 @@ function SignupForm() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Smartphone className="w-4 h-4 text-emerald-300" />
+              <Smartphone className="w-4 h-4 text-blue-300" />
               <p className="text-slate-300">
                 <strong>Cleaners</strong> see today&apos;s jobs and earnings as soon as you book.
               </p>

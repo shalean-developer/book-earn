@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Page not found – Bokkies",
+  title: "Page not found – Shalean Cleaning Services",
   description: "The page you're looking for doesn't exist or has been moved.",
   robots: { index: false, follow: true },
 };

@@ -131,7 +131,7 @@ export const BlogPage = ({
             </div>
 
             <div className="relative">
-              <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/10 via-blue-400/5 to-emerald-400/10 blur-2xl" />
+              <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/10 via-blue-400/5 to-teal-400/10 blur-2xl" />
               <div className="relative bg-white rounded-3xl border border-slate-100 shadow-lg overflow-hidden">
                 <div className="p-6 border-b border-slate-100 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
@@ -269,7 +269,7 @@ export const BlogPage = ({
             <button
               type="button"
               onClick={() => onNavigate("booking")}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-sm font-semibold px-5 py-2.5 text-emerald-400 transition hover:bg-emerald-500/20 self-start md:self-auto"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-500/50 bg-teal-500/10 text-sm font-semibold px-5 py-2.5 text-teal-400 transition hover:bg-teal-500/20 self-start md:self-auto"
             >
               Prefer done‑for‑you cleaning?
               <ArrowRight className="w-4 h-4" />
@@ -292,7 +292,7 @@ export const BlogPage = ({
                   />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col justify-center p-5 md:p-6">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-teal-400">
                     {article.category}
                   </p>
                   <h3 className="mt-2 text-base font-bold leading-snug text-white md:text-lg">
@@ -316,7 +316,7 @@ export const BlogPage = ({
                   </div>
                   <button
                     type="button"
-                    className="mt-4 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-400/90 transition hover:text-emerald-300"
+                    className="mt-4 inline-flex w-fit items-center gap-1 text-sm font-semibold text-teal-400/90 transition hover:text-teal-300"
                   >
                     Read guide
                     <ArrowRight className="w-4 h-4" />

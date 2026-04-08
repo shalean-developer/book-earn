@@ -76,7 +76,7 @@ const Button = ({
     "px-6 py-3 rounded-full font-semibold transition-all duration-200 inline-flex items-center justify-center gap-2";
   const variants = {
     primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-md",
-    secondary: "bg-emerald-500 text-white hover:bg-emerald-600",
+    secondary: "bg-teal-500 text-white hover:bg-teal-600",
     outline: "border-2 border-blue-600 text-blue-600 hover:bg-blue-50",
     ghost: "text-slate-600 hover:text-blue-600 hover:bg-slate-100",
   } as const;
@@ -391,7 +391,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({ onNavigate }) => {
                         key={i}
                         className="flex items-center gap-2 text-sm text-slate-600"
                       >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-teal-500 flex-shrink-0" />
                         {f}
                       </li>
                     ))}

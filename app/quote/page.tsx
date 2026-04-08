@@ -3,12 +3,12 @@ import Link from "next/link";
 import { SITE_URL } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Instant quote – Bokkies",
+  title: "Instant quote – Shalean Cleaning Services",
   description:
     "Estimate pricing for home, office and Airbnb cleaning in Cape Town. Final price is confirmed at checkout with live surcharges and discounts.",
   alternates: { canonical: `${SITE_URL}/quote` },
   openGraph: {
-    title: "Instant quote – Bokkies",
+    title: "Instant quote – Shalean Cleaning Services",
     description:
       "Estimate pricing for professional cleaning. Book online when you’re ready.",
     type: "website",

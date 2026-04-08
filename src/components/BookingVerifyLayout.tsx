@@ -18,8 +18,8 @@ const STEPPER_ALL_DONE_ACTIVE_INDEX = 6;
 
 export function BookingVerifyLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-[#F9F9F7]">
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-black border-b border-white/10 text-white">
+    <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-[#EFF6FF]">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#2563EB] border-b border-white/15 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 flex-shrink-0 text-white">
             <span className="font-bold tracking-tight text-base sm:text-lg">
@@ -45,15 +45,15 @@ export function BookingVerifyLayout({ children }: { children: React.ReactNode })
                       <div
                         className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-black transition-all ${
                           current
-                            ? "bg-white text-black"
+                            ? "bg-white text-[#2563EB]"
                             : completed
-                              ? "bg-[#86EFAC] text-neutral-900 border border-[#86EFAC]"
+                              ? "bg-teal-500 text-white border border-teal-500"
                               : "bg-white/10 text-white/70 border border-white/15"
                         }`}
                         aria-label={label}
                       >
                         {completed && !current ? (
-                          <CheckCircle2 className="w-4 h-4 sm:w-[18px] sm:h-[18px] stroke-[2.5]" />
+                          <CheckCircle2 className="w-4 h-4 sm:w-[18px] sm:h-[18px] stroke-[2.5] text-white" />
                         ) : (
                           idx + 1
                         )}

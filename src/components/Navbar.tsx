@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Phone } from "lucide-react";
@@ -11,11 +10,18 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { status } = useSession();
-  const pathname = usePathname();
+  const { data: session, status } = useSession();
 
   const isAuthenticated = status === "authenticated";
-  const isHomePage = pathname === "/";
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const dashboardHref =
+    role === "admin"
+      ? "/admin"
+      : role === "customer"
+        ? "/customer"
+        : role === "cleaner"
+          ? "/cleaner"
+          : null;
 
   const navLinks = [
     { name: "Services", href: "#services" },
@@ -32,13 +38,13 @@ const Navbar = () => {
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/logo.png"
-              alt="Bokkies"
+              alt="Shalean Cleaning Services"
               width={36}
               height={36}
               className="h-9 w-9 object-contain"
             />
             <span className="font-display font-bold text-xl text-foreground">
-              Bokkies
+              Shalean Cleaning Services
             </span>
           </Link>
 
@@ -64,12 +70,25 @@ const Navbar = () => {
               <Phone className="w-4 h-4" />
               <span className="text-sm font-medium">Contact Us</span>
             </a>
-            <Button variant="outline" size="sm">
-              Log In
-            </Button>
-            <Button size="sm">
-              List Your Business
-            </Button>
+            {!isAuthenticated ? (
+              <>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/login">Log In</Link>
+                </Button>
+                <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
+                  <Link href="/signup">Sign up</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href="/quote">Get a quote</Link>
+                </Button>
+              </>
+            ) : (
+              dashboardHref && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={dashboardHref}>My dashboard</Link>
+                </Button>
+              )
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -103,45 +122,39 @@ const Navbar = () => {
                 </a>
               ))}
 
-              {isAuthenticated && isHomePage && (
+              {isAuthenticated && dashboardHref && (
                 <div className="flex flex-col gap-2 pt-4 border-t border-border">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Dashboards
-                  </span>
                   <Button
                     asChild
                     variant="outline"
                     className="w-full justify-start"
                     onClick={() => setIsOpen(false)}
                   >
-                    <Link href="/customer">Customer Dashboard</Link>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    <Link href="/cleaner">Cleaner Dashboard</Link>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    <Link href="/admin">Admin Dashboard</Link>
+                    <Link href={dashboardHref}>My dashboard</Link>
                   </Button>
                 </div>
               )}
 
               <div className="flex flex-col gap-2 pt-4 border-t border-border">
-                <Button variant="outline" className="w-full">
-                  Log In
-                </Button>
-                <Button className="w-full">
-                  List Your Business
-                </Button>
+                {!isAuthenticated ? (
+                  <>
+                    <Button variant="outline" className="w-full" asChild>
+                      <Link href="/login" onClick={() => setIsOpen(false)}>
+                        Log In
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" className="w-full" asChild>
+                      <Link href="/signup" onClick={() => setIsOpen(false)}>
+                        Sign up
+                      </Link>
+                    </Button>
+                    <Button className="w-full" asChild>
+                      <Link href="/quote" onClick={() => setIsOpen(false)}>
+                        Get a quote
+                      </Link>
+                    </Button>
+                  </>
+                ) : null}
               </div>
             </div>
           </motion.div>

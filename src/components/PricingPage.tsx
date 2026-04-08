@@ -331,7 +331,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate }) => {
                         key={i}
                         className="flex items-center gap-2 text-sm text-slate-600"
                       >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-teal-500 flex-shrink-0" />
                         {item}
                       </li>
                     ))}

@@ -592,13 +592,14 @@ const TEAMS: Team[] = [
 const TIME_SLOTS = ["08:00", "10:00", "13:00", "15:00"];
 const DAYS_AHEAD = 90;
 
+/** Icon chips — blue primary + teal accent only (matches marketing HOME palette). */
 const SERVICE_DROPDOWN_ICON_WRAP: Record<string, string> = {
   blue: "bg-blue-50 text-blue-600",
-  indigo: "bg-indigo-50 text-indigo-600",
-  violet: "bg-violet-50 text-violet-600",
-  sky: "bg-sky-50 text-sky-600",
-  teal: "bg-teal-50 text-teal-600",
-  rose: "bg-rose-50 text-rose-600",
+  indigo: "bg-blue-100 text-blue-800",
+  violet: "bg-teal-50 text-teal-600",
+  sky: "bg-sky-50 text-sky-700",
+  teal: "bg-teal-50 text-teal-700",
+  rose: "bg-teal-100 text-teal-800",
 };
 
 const TOTAL_STEPS = 6;
@@ -701,10 +702,17 @@ function getDatesForMonth(): string[] {
   for (let i = 0; i <= DAYS_AHEAD; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    dates.push(d.toISOString().split("T")[0]);
+    dates.push(formatLocalDate(d));
   }
 
   return dates;
+}
+
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /** Parse YYYY-MM-DD in local calendar (avoids UTC off-by-one with plain parseISO). */
@@ -715,13 +723,6 @@ function parseLocalDate(dateStr: string): Date {
   }
   const [y, m, d] = parts;
   return new Date(y, m - 1, d);
-}
-
-function formatLocalDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
 
 /** "HH:mm" slot string → readable label (e.g. 8:30 am). */
@@ -1275,7 +1276,7 @@ const Step1Plan = ({
   return (
     <div className="space-y-10">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-600 mb-2">
           Book your clean
         </p>
         <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
@@ -1300,11 +1301,11 @@ const Step1Plan = ({
                 type="button"
                 aria-expanded={serviceOpen}
                 aria-haspopup="listbox"
-                className="relative w-full flex items-center gap-3 pl-3 pr-10 py-3.5 rounded-xl border border-neutral-200 bg-white text-left text-sm font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-400 transition-shadow"
+                className="relative w-full h-12 flex items-center gap-3 pl-3 pr-10 rounded-xl border border-neutral-200 bg-white text-left text-sm font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-neutral-400 transition-shadow"
               >
                 <span
                   className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
                     SERVICE_DROPDOWN_ICON_WRAP[selectedService.color] ?? "bg-neutral-100 text-neutral-700",
                   )}
                 >
@@ -1344,7 +1345,7 @@ const Step1Plan = ({
                         className={cn(
                           "w-full flex gap-3 rounded-lg px-2 py-2.5 text-left transition-colors",
                           active
-                            ? "bg-emerald-50 ring-1 ring-emerald-200/80"
+                            ? "bg-blue-50 ring-1 ring-blue-200/80"
                             : "hover:bg-neutral-50",
                         )}
                       >
@@ -1388,7 +1389,7 @@ const Step1Plan = ({
                 aria-expanded={areaOpen}
                 aria-haspopup="listbox"
                 className={cn(
-                  "relative w-full flex items-center gap-3 pl-10 pr-10 py-3.5 rounded-xl border bg-white text-left text-sm font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 transition-shadow",
+                  "relative w-full h-12 flex items-center gap-3 pl-10 pr-10 rounded-xl border bg-white text-left text-sm font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-shadow",
                   errors.workingArea ? "border-red-400 bg-red-50" : "border-neutral-200 focus:border-neutral-400",
                   !data.workingArea && "text-neutral-500",
                 )}
@@ -1435,13 +1436,13 @@ const Step1Plan = ({
                               className={cn(
                                 "w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium transition-colors",
                                 active
-                                  ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/80"
+                                  ? "bg-blue-50 text-blue-900 ring-1 ring-blue-200/80"
                                   : "text-neutral-800 hover:bg-neutral-50",
                               )}
                             >
                               <MapPin className="w-4 h-4 shrink-0 text-neutral-400" />
                               <span className="min-w-0 flex-1">{area}</span>
-                              {active && <Check className="w-4 h-4 shrink-0 text-emerald-600" />}
+                              {active && <Check className="w-4 h-4 shrink-0 text-blue-600" />}
                             </button>
                           </li>
                         );
@@ -1472,7 +1473,7 @@ const Step1Plan = ({
           }
           placeholder="Street, suburb, city, postal code"
           rows={2}
-          className={`w-full px-4 py-3 rounded-xl border text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 resize-y min-h-[72px] ${
+          className={`w-full px-4 py-3 rounded-xl border text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-y min-h-[72px] ${
             errors.address ? "border-red-400 bg-red-50" : "border-neutral-200 bg-white"
           }`}
         />
@@ -1516,11 +1517,11 @@ const Step1Plan = ({
                 }
                 className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all flex-1 min-w-[100px] sm:flex-none ${
                   selected
-                    ? "bg-neutral-900 text-white shadow-sm"
+                    ? "bg-blue-600 text-white shadow-sm"
                     : "text-neutral-600 hover:text-neutral-900 hover:bg-white/80"
                 }`}
               >
-                <span className={selected ? "text-[#86EFAC]" : "text-neutral-500"}>{item.icon}</span>
+                <span className={selected ? "text-white" : "text-neutral-500"}>{item.icon}</span>
                 {item.label}
               </button>
             );
@@ -1614,7 +1615,7 @@ const Step1Plan = ({
                         }
                         className={`px-5 py-2.5 rounded-xl text-xs font-semibold tracking-wide uppercase transition-all ${
                           selected
-                            ? "bg-neutral-900 text-white shadow-sm"
+                            ? "bg-blue-600 text-white shadow-sm"
                             : "bg-white text-neutral-500 border border-neutral-200 hover:bg-neutral-50"
                         }`}
                       >
@@ -1741,11 +1742,11 @@ const Step1Plan = ({
                 equipmentMode: v === "yes" ? "shalean" : "customer",
               }))
             }
-            className="flex flex-col gap-2"
+            className="flex flex-row gap-2"
           >
             <label
               htmlFor="booking-equipment-yes"
-              className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
+              className="flex flex-1 min-w-0 items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-blue-600 has-[[data-state=checked]]:bg-blue-50/80"
             >
               <RadioGroupItem value="yes" id="booking-equipment-yes" className="mt-0.5 shrink-0" />
               <span className="min-w-0">
@@ -1757,7 +1758,7 @@ const Step1Plan = ({
             </label>
             <label
               htmlFor="booking-equipment-no"
-              className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
+              className="flex flex-1 min-w-0 items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-blue-600 has-[[data-state=checked]]:bg-blue-50/80"
             >
               <RadioGroupItem value="no" id="booking-equipment-no" className="mt-0.5 shrink-0" />
               <span className="min-w-0">
@@ -1786,11 +1787,11 @@ const Step1Plan = ({
                   return { ...prev, extras: without };
                 });
               }}
-              className="flex flex-col gap-2"
+              className="flex flex-row gap-2"
             >
               <label
                 htmlFor="booking-extra-cleaner-no"
-                className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
+                className="flex flex-1 min-w-0 items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-blue-600 has-[[data-state=checked]]:bg-blue-50/80"
               >
                 <RadioGroupItem value="no" id="booking-extra-cleaner-no" className="mt-0.5 shrink-0" />
                 <span className="min-w-0">
@@ -1802,7 +1803,7 @@ const Step1Plan = ({
               </label>
               <label
                 htmlFor="booking-extra-cleaner-yes"
-                className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-neutral-900 has-[[data-state=checked]]:bg-neutral-50"
+                className="flex flex-1 min-w-0 items-start gap-3 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 cursor-pointer transition-colors hover:bg-neutral-50/90 has-[[data-state=checked]]:border-blue-600 has-[[data-state=checked]]:bg-blue-50/80"
               >
                 <RadioGroupItem value="yes" id="booking-extra-cleaner-yes" className="mt-0.5 shrink-0" />
                 <span className="min-w-0">
@@ -1926,12 +1927,12 @@ const Step1Plan = ({
                   freqDisabled
                     ? "border-neutral-100 bg-neutral-50 opacity-55 cursor-not-allowed"
                     : selected
-                      ? "border-neutral-900 bg-neutral-900 text-white shadow-md"
+                      ? "border-blue-600 bg-blue-600 text-white shadow-md"
                       : "border-neutral-200 bg-white hover:border-neutral-300"
                 }`}
               >
                 {opt.popular && (
-                  <span className="absolute -top-1.5 left-2 rounded-full bg-[#86EFAC] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-neutral-900">
+                  <span className="absolute -top-1.5 left-2 rounded-full bg-teal-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white">
                     Popular
                   </span>
                 )}
@@ -1945,7 +1946,7 @@ const Step1Plan = ({
                 {opt.discount && (
                   <span
                     className={`mt-0.5 block text-[11px] font-semibold ${
-                      selected ? "text-[#86EFAC]" : "text-emerald-600"
+                      selected ? "text-teal-300" : "text-blue-600"
                     }`}
                   >
                     {opt.id === "once" ? "" : opt.discount}
@@ -1986,7 +1987,7 @@ const Step1Plan = ({
                     }
                     className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all ${
                       selected
-                        ? "bg-neutral-900 text-white border-neutral-900"
+                        ? "bg-blue-600 text-white border-blue-600"
                         : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"
                     }`}
                   >
@@ -2043,7 +2044,7 @@ function Step2Preferences({
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-600 mb-2">
           Book your clean
         </p>
         <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
@@ -2085,7 +2086,7 @@ function Step2Preferences({
               }}
               className={`relative flex w-full text-left items-start gap-3 rounded-xl border p-4 transition-all min-h-[5.5rem] ${
                 selected
-                  ? "border-neutral-900 bg-neutral-900 text-white shadow-md ring-1 ring-neutral-900/10"
+                  ? "border-blue-600 bg-blue-600 text-white shadow-md ring-1 ring-blue-600/10"
                   : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/80"
               }`}
             >
@@ -2093,8 +2094,8 @@ function Step2Preferences({
                 <span
                   className={`absolute -top-2 right-3 text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
                     selected
-                      ? "bg-[#86EFAC] text-neutral-900"
-                      : "text-amber-900 bg-amber-100"
+                      ? "bg-teal-400 text-neutral-900"
+                      : "text-teal-900 bg-teal-100"
                   }`}
                 >
                   Popular
@@ -2102,7 +2103,7 @@ function Step2Preferences({
               )}
               <div
                 className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
-                  selected ? "bg-white/10 text-[#86EFAC]" : "bg-neutral-100 text-neutral-700"
+                  selected ? "bg-white/10 text-teal-300" : "bg-neutral-100 text-neutral-700"
                 }`}
               >
                 <span className="[&_svg]:h-5 [&_svg]:w-5">{extra.icon}</span>
@@ -2127,7 +2128,7 @@ function Step2Preferences({
                 {isQuantityEnabled && selected && quantity > 1 && (
                   <p
                     className={`mt-1.5 text-[11px] font-semibold tabular-nums ${
-                      selected ? "text-[#86EFAC]" : "text-emerald-700"
+                      selected ? "text-teal-300" : "text-blue-700"
                     }`}
                   >
                     ×{quantity} · R{displayExtraPrice * quantity}
@@ -2137,7 +2138,7 @@ function Step2Preferences({
               <div className="shrink-0 self-center">
                 <span
                   className={`text-sm font-black tabular-nums whitespace-nowrap ${
-                    selected ? "text-[#86EFAC]" : "text-emerald-600"
+                    selected ? "text-teal-300" : "text-blue-600"
                   }`}
                 >
                   +R{displayExtraPrice}
@@ -2218,7 +2219,7 @@ function Step2Preferences({
                   }
                   setQuantityModalExtra(null);
                 }}
-                className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-neutral-900 text-white hover:bg-neutral-800"
+                className="px-4 py-1.5 rounded-full text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-700"
               >
                 Save
               </button>
@@ -2302,7 +2303,7 @@ function BookingTipBlock({
               }}
               className={`px-4 py-2.5 rounded-full text-xs font-bold border transition-all ${
                 selected
-                  ? "bg-neutral-900 text-white border-neutral-900"
+                  ? "bg-blue-600 text-white border-blue-600"
                   : "bg-neutral-100 text-neutral-600 border-transparent hover:border-neutral-200"
               }`}
             >
@@ -2320,7 +2321,7 @@ function BookingTipBlock({
           }}
           className={`px-4 py-2.5 rounded-full text-xs font-bold border transition-all ${
             tipPreset === "custom"
-              ? "bg-neutral-900 text-white border-neutral-900"
+              ? "bg-blue-600 text-white border-blue-600"
               : "bg-neutral-100 text-neutral-600 border-transparent hover:border-neutral-200"
           }`}
         >
@@ -2349,7 +2350,7 @@ function BookingTipBlock({
               }
             }}
             placeholder="e.g. 75"
-            className="mt-1 w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-semibold text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/15 focus:border-neutral-400"
+            className="mt-1 w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-semibold text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-neutral-400"
           />
         </div>
       )}
@@ -2379,8 +2380,8 @@ function Step2Schedule({
     type: "success" | "error";
   } | null>(null);
   const [applyingPromo, setApplyingPromo] = useState(false);
-  const [dateSheetOpen, setDateSheetOpen] = useState(false);
-  const [timeSheetOpen, setTimeSheetOpen] = useState(false);
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [timePopoverOpen, setTimePopoverOpen] = useState(false);
 
   useEffect(() => {
     const updateDates = () => setAvailableDates(getDatesForMonth());
@@ -2529,12 +2530,12 @@ function Step2Schedule({
   const dateMax = availableDates[availableDates.length - 1] ?? "";
 
   const fieldShell =
-    "flex items-center gap-3 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-neutral-900/10 focus-within:border-neutral-900/30 transition-all";
+    "flex items-center gap-3 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-600/40 transition-all";
 
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-teal-600 mb-2">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600 mb-2">
           Book your clean
         </p>
         <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
@@ -2560,11 +2561,13 @@ function Step2Schedule({
             <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">
               Preferred date
             </label>
-            <Sheet open={dateSheetOpen} onOpenChange={setDateSheetOpen}>
-              <SheetTrigger asChild>
+            <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+              <PopoverTrigger asChild>
                 <button
                   type="button"
                   className={`${fieldShell} w-full cursor-pointer text-left transition-colors hover:border-neutral-300`}
+                  aria-expanded={datePopoverOpen}
+                  aria-haspopup="dialog"
                 >
                   <Calendar className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
                   <span className="min-w-0 flex-1 text-sm font-semibold text-neutral-900">
@@ -2574,60 +2577,74 @@ function Step2Schedule({
                   </span>
                   <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
                 </button>
-              </SheetTrigger>
-              <SheetContent
+              </PopoverTrigger>
+              <PopoverContent
                 side="bottom"
-                className="left-0 right-0 max-h-[88vh] overflow-y-auto rounded-t-[1.25rem] border-0 px-4 pb-6 pt-2 sm:left-auto sm:right-auto sm:mx-auto sm:max-w-lg"
+                align="start"
+                sideOffset={8}
+                collisionPadding={16}
+                className="w-auto max-w-[min(calc(100vw-2rem),360px)] border-neutral-200/90 bg-white p-4 shadow-lg"
               >
-                <SheetHeader className="mb-3 space-y-1 pr-8 text-left">
-                  <SheetTitle className="text-base font-black tracking-tight text-neutral-900">
+                <div className="mb-3 space-y-1 text-left">
+                  <p className="text-base font-black tracking-tight text-neutral-900">
                     Choose date
-                  </SheetTitle>
+                  </p>
                   <p className="text-[13px] font-medium text-neutral-500">
                     You can book up to three months in advance.
                   </p>
-                </SheetHeader>
+                </div>
                 <div className="flex justify-center">
                   <DatePickerCalendar
                     mode="single"
                     selected={data.date ? parseLocalDate(data.date) : undefined}
                     onSelect={(d) => {
-                      if (d) applyDateChange(formatLocalDate(d));
+                      if (d) {
+                        applyDateChange(formatLocalDate(d));
+                        setDatePopoverOpen(false);
+                      }
                     }}
+                    defaultMonth={
+                      data.date
+                        ? parseLocalDate(data.date)
+                        : dateMin
+                          ? parseLocalDate(dateMin)
+                          : undefined
+                    }
                     startMonth={dateMin ? parseLocalDate(dateMin) : undefined}
                     endMonth={dateMax ? parseLocalDate(dateMax) : undefined}
+                    disabled={
+                      dateMin && dateMax
+                        ? [
+                            { before: parseLocalDate(dateMin) },
+                            { after: parseLocalDate(dateMax) },
+                          ]
+                        : undefined
+                    }
                     captionLayout="dropdown"
                     className="w-full max-w-[340px] rounded-xl border border-neutral-200/90 bg-neutral-50/50 p-2"
                     classNames={{
                       selected:
-                        "bg-transparent [&_button]:!bg-neutral-900 [&_button]:!text-white [&_button:hover]:!bg-neutral-800",
+                        "bg-transparent [&_button]:!bg-blue-600 [&_button]:!text-white [&_button:hover]:!bg-blue-700",
                       today:
                         "bg-transparent [&_button]:!bg-teal-100 [&_button]:!text-teal-900 [&_button]:!font-semibold",
                     }}
                   />
                 </div>
-                <SheetFooter className="mt-6 flex-col gap-0 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => setDateSheetOpen(false)}
-                    className="w-full rounded-xl bg-neutral-900 py-3 text-sm font-bold text-white hover:bg-neutral-800"
-                  >
-                    Done
-                  </button>
-                </SheetFooter>
-              </SheetContent>
-            </Sheet>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div>
             <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">
               Arrival window
             </label>
-            <Sheet open={timeSheetOpen} onOpenChange={setTimeSheetOpen}>
-              <SheetTrigger asChild>
+            <Popover open={timePopoverOpen} onOpenChange={setTimePopoverOpen}>
+              <PopoverTrigger asChild>
                 <button
                   type="button"
                   className={`${fieldShell} w-full cursor-pointer text-left transition-colors hover:border-neutral-300`}
+                  aria-expanded={timePopoverOpen}
+                  aria-haspopup="dialog"
                 >
                   <Clock className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
                   <span className="min-w-0 flex-1 text-sm font-semibold text-neutral-900">
@@ -2637,74 +2654,61 @@ function Step2Schedule({
                   </span>
                   <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
                 </button>
-              </SheetTrigger>
-              <SheetContent
+              </PopoverTrigger>
+              <PopoverContent
                 side="bottom"
-                className="left-0 right-0 max-h-[88vh] overflow-y-auto rounded-t-[1.25rem] border-0 px-4 pb-6 pt-2 sm:left-auto sm:right-auto sm:mx-auto sm:max-w-lg"
+                align="start"
+                sideOffset={8}
+                collisionPadding={16}
+                className="w-full max-w-[min(calc(100vw-2rem),380px)] border-neutral-200/90 bg-white p-4 shadow-lg"
               >
-                <SheetHeader className="mb-3 space-y-1 pr-8 text-left">
-                  <SheetTitle className="text-base font-black tracking-tight text-neutral-900">
+                <div className="mb-3 space-y-1 text-left">
+                  <p className="text-base font-black tracking-tight text-neutral-900">
                     Choose arrival time
-                  </SheetTitle>
+                  </p>
                   <p className="text-[13px] font-medium text-neutral-500">
                     Times are in 30-minute steps for your selected day.
                   </p>
-                </SheetHeader>
+                </div>
                 {timeSlots.length === 0 ? (
                   <p className="text-sm font-medium text-neutral-500">
                     No slots left for this day. Choose another date.
                   </p>
                 ) : (
-                  <div className="relative">
-                    <Clock
-                      className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-neutral-400"
-                      aria-hidden
-                    />
-                    <select
-                      value={
-                        data.time && timeSlots.includes(data.time)
-                          ? data.time
-                          : ""
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v) setData((prev) => ({ ...prev, time: v }));
-                      }}
-                      className={cn(
-                        "w-full min-h-[52px] cursor-pointer appearance-none rounded-xl border border-neutral-200 bg-white py-3.5 pl-11 pr-11 text-base font-semibold text-neutral-900 shadow-sm",
-                        "focus:outline-none focus:ring-2 focus:ring-neutral-900/15 focus:border-neutral-400",
-                        "[color-scheme:light]"
-                      )}
-                      aria-label="Arrival time"
-                    >
-                      {!data.time || !timeSlots.includes(data.time) ? (
-                        <option value="" disabled>
-                          Select a time
-                        </option>
-                      ) : null}
-                      {timeSlots.map((slot) => (
-                        <option key={slot} value={slot}>
-                          {formatTimeSlotLabel(slot)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
-                      aria-hidden
-                    />
+                  <div
+                    role="listbox"
+                    aria-label="Arrival time options"
+                    className="max-h-[min(320px,50vh)] overflow-y-auto rounded-xl border border-neutral-200/90 bg-neutral-50/50 p-1.5"
+                  >
+                    <div className="flex flex-col gap-1">
+                      {timeSlots.map((slot) => {
+                        const selected = data.time === slot;
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            onClick={() => {
+                              setData((prev) => ({ ...prev, time: slot }));
+                              setTimePopoverOpen(false);
+                            }}
+                            className={cn(
+                              "w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition-colors",
+                              selected
+                                ? "bg-blue-600 text-white"
+                                : "text-neutral-900 hover:bg-white hover:shadow-sm"
+                            )}
+                          >
+                            {formatTimeSlotLabel(slot)}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
-                <SheetFooter className="mt-6 flex-col gap-0 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => setTimeSheetOpen(false)}
-                    className="w-full rounded-xl bg-neutral-900 py-3 text-sm font-bold text-white hover:bg-neutral-800"
-                  >
-                    Done
-                  </button>
-                </SheetFooter>
-              </SheetContent>
-            </Sheet>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -2727,7 +2731,7 @@ function Step2Schedule({
               type="button"
               onClick={applyPromo}
               disabled={applyingPromo}
-              className="shrink-0 px-6 py-2.5 bg-neutral-900 text-white text-sm font-bold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              className="shrink-0 px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
             >
               {applyingPromo ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -2739,7 +2743,7 @@ function Step2Schedule({
             <p
               className={`text-xs font-medium flex items-center gap-1.5 ${
                 promoMsg.type === "success"
-                  ? "text-emerald-600"
+                  ? "text-blue-600"
                   : "text-red-600"
               }`}
             >
@@ -2857,14 +2861,14 @@ const StepCleanerTeam = ({
   const cardBase =
     "relative w-full text-left rounded-xl border p-4 transition-all min-h-[5.5rem]";
   const cardSelected =
-    "border-neutral-900 bg-neutral-900 text-white shadow-md ring-1 ring-neutral-900/10";
+    "border-blue-600 bg-blue-600 text-white shadow-md ring-1 ring-blue-600/10";
   const cardIdle =
     "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/80";
 
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-600 mb-2">
           Book your clean
         </p>
         <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
@@ -2918,7 +2922,7 @@ const StepCleanerTeam = ({
                       ) : (
                         <div
                           className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                            selected ? "bg-white/15 text-[#86EFAC]" : "bg-neutral-100 text-neutral-700"
+                            selected ? "bg-white/15 text-teal-300" : "bg-neutral-100 text-neutral-700"
                           }`}
                         >
                           <User className="w-6 h-6" />
@@ -2936,8 +2940,8 @@ const StepCleanerTeam = ({
                           <Star
                             className={`w-3.5 h-3.5 shrink-0 ${
                               selected
-                                ? "text-amber-300 fill-amber-300"
-                                : "text-amber-400 fill-amber-400"
+                                ? "text-teal-300 fill-teal-300"
+                                : "text-teal-400 fill-teal-400"
                             }`}
                           />
                           <span
@@ -2971,7 +2975,7 @@ const StepCleanerTeam = ({
                     <div
                       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
                         data.cleanerId === "any"
-                          ? "bg-white/10 text-[#86EFAC]"
+                          ? "bg-white/10 text-teal-300"
                           : "bg-neutral-100 text-neutral-700"
                       }`}
                     >
@@ -3042,7 +3046,7 @@ const StepCleanerTeam = ({
                       <div className="flex items-center gap-3 min-w-0">
                         <div
                           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
-                            selected ? "bg-white/10 text-[#86EFAC]" : "bg-neutral-100 text-neutral-700"
+                            selected ? "bg-white/10 text-teal-300" : "bg-neutral-100 text-neutral-700"
                           }`}
                         >
                           <Users className="w-5 h-5" />
@@ -3058,8 +3062,8 @@ const StepCleanerTeam = ({
                       <span
                         className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
                           selected
-                            ? "bg-white/15 text-[#86EFAC]"
-                            : "bg-emerald-100 text-emerald-800"
+                            ? "bg-white/15 text-teal-300"
+                            : "bg-teal-100 text-teal-800"
                         }`}
                       >
                         {team.availability}
@@ -3086,7 +3090,7 @@ const StepCleanerTeam = ({
                     <div
                       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
                         data.teamId === "any"
-                          ? "bg-white/10 text-[#86EFAC]"
+                          ? "bg-white/10 text-teal-300"
                           : "bg-neutral-100 text-neutral-700"
                       }`}
                     >
@@ -3177,12 +3181,12 @@ const Step4YourDetails = ({
   };
 
   const inputFocus =
-    "w-full px-4 py-3 bg-white border border-neutral-200 rounded-xl text-neutral-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-all";
+    "w-full px-4 py-3 bg-white border border-neutral-200 rounded-xl text-neutral-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all";
 
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-600 mb-3">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-600 mb-3">
           Book your clean
         </p>
         <h2 className="text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight mb-2">
@@ -3302,7 +3306,7 @@ const Step5Checkout = ({
 }) => (
   <div className="space-y-8">
     <div>
-      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 mb-2">
+      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-600 mb-2">
         Book your clean
       </p>
       <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
@@ -3349,7 +3353,7 @@ const Step5Checkout = ({
                 acceptedTerms: e.target.checked,
               }))
             }
-            className="mt-0.5 w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900/20"
+            className="mt-0.5 w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500/20"
           />
           <span>
             I have read and agree to the{" "}
@@ -3380,7 +3384,7 @@ const Step5Checkout = ({
           type="button"
           onClick={onPaystackPay}
           disabled={isProcessing || !data.acceptedTerms}
-          className="w-full sm:w-auto px-10 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-60 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-neutral-900/15 text-sm"
+          className="w-full sm:w-auto px-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20 text-sm"
         >
           {isProcessing ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -3502,7 +3506,7 @@ const Step5Confirmation = ({
     const startStr = formatForCalendar(start);
     const endStr = formatForCalendar(end);
 
-    const title = encodeURIComponent(`${service.title} – Bokkies`);
+    const title = encodeURIComponent(`${service.title} – Shalean Cleaning Services`);
     const details = encodeURIComponent(
       `Booking reference: ${bookingRef}\nService: ${service.title}\nAddress: ${data.address}${
         data.apartmentUnit ? `, ${data.apartmentUnit}` : ""
@@ -3528,7 +3532,7 @@ const Step5Confirmation = ({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.15, type: "spring", stiffness: 200 }}
-            className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200"
+            className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200"
           >
             <CheckCircle2 className="w-8 h-8 sm:w-10 sm:h-10 text-white" strokeWidth={2.5} />
           </motion.div>
@@ -3759,8 +3763,8 @@ export const BookingSystem = ({
     }
 
     // Ensure a sensible default schedule on first load:
-    // current date and the 08:00 time slot.
-    const todayStr = new Date().toISOString().split("T")[0];
+    // current local calendar date and the 08:00 time slot.
+    const todayStr = formatLocalDate(new Date());
     if (!initialData.date) {
       initialData = { ...initialData, date: todayStr };
     }
@@ -4131,7 +4135,7 @@ export const BookingSystem = ({
 
   return (
     <div
-      className={`w-full pt-4 pb-4 font-sans ${step === 6 ? "pb-28 lg:pb-4" : ""} ${summaryLight ? "bg-[#F9F9F7] min-h-[calc(100vh-3.5rem)]" : ""}`}
+      className={`w-full bg-[#EFF6FF] pt-4 pb-4 font-sans ${step === 6 ? "pb-28 lg:pb-4" : ""} min-h-[calc(100vh-3.5rem)]`}
     >
       <main className="max-w-7xl mx-auto px-3 sm:px-6 w-full pb-2">
         <div aria-live="polite" className="sr-only">
@@ -4141,7 +4145,7 @@ export const BookingSystem = ({
           <div className="space-y-6">
             <div className={`flex flex-col gap-8 ${summaryLight ? "bg-transparent border-0 shadow-none py-6 sm:py-8 px-0 sm:px-0" : "bg-transparent sm:bg-white rounded-3xl border-0 sm:border sm:border-slate-200 px-0 shadow-sm py-6 sm:p-10"}`}>
               {redirectedFromDeepLink && step === 1 && (
-                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
                   To finish your booking, start with your cleaning plan. We brought you back to Step 1 so you can complete the details above first.
                 </div>
               )}
@@ -4235,7 +4239,7 @@ export const BookingSystem = ({
                         disabled={!canProceed()}
                         className={`flex-1 text-white font-bold py-4 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-all ${
                           summaryLight
-                            ? "bg-neutral-900 hover:bg-neutral-800 shadow-lg shadow-neutral-900/10"
+                            ? "bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20"
                             : "bg-blue-600 rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-700"
                         }`}
                       >
@@ -4336,7 +4340,7 @@ export const BookingSystem = ({
                   </div>
                 )}
                 {(pricing.peakCharge > 0 || pricing.weekendCharge > 0) && (
-                  <div className="flex justify-between text-[11px] text-amber-800 mb-1">
+                  <div className="flex justify-between text-[11px] text-blue-800 mb-1">
                     <span>Peak / weekend</span>
                     <span className="font-medium tabular-nums">
                       +R{pricing.peakCharge + pricing.weekendCharge}
@@ -4350,7 +4354,7 @@ export const BookingSystem = ({
                   </div>
                 )}
                 {pricing.discountAmount > 0 && (
-                  <div className="flex justify-between text-[11px] text-emerald-700 mb-1">
+                  <div className="flex justify-between text-[11px] text-teal-700 mb-1">
                     <span>
                       Discounts
                       {data.promoCode ? ` (${data.promoCode})` : ""}
@@ -4561,10 +4565,10 @@ export const BookingSystem = ({
                   {(pricing.peakCharge > 0 || pricing.weekendCharge > 0) && (
                     <div
                       className={`flex justify-between text-[11px] ${
-                        summaryLight ? "text-amber-800" : "text-amber-200/90"
+                        summaryLight ? "text-blue-800" : "text-blue-200/90"
                       }`}
                     >
-                      <span className={summaryLight ? "text-amber-800/80" : "opacity-70"}>Peak / weekend</span>
+                      <span className={summaryLight ? "text-blue-800/80" : "opacity-70"}>Peak / weekend</span>
                       <span className="font-medium">
                         +R{pricing.peakCharge + pricing.weekendCharge}
                       </span>
@@ -4579,10 +4583,10 @@ export const BookingSystem = ({
                   {pricing.discountAmount > 0 && (
                     <div
                       className={`flex justify-between text-[11px] ${
-                        summaryLight ? "text-emerald-700" : "text-emerald-400"
+                        summaryLight ? "text-teal-700" : "text-teal-400"
                       }`}
                     >
-                      <span className={summaryLight ? "text-emerald-800/90" : "opacity-70 text-white"}>
+                      <span className={summaryLight ? "text-teal-800/90" : "opacity-70 text-white"}>
                         Discounts
                         {data.promoCode ? ` (${data.promoCode})` : ""}
                       </span>
@@ -4609,7 +4613,7 @@ export const BookingSystem = ({
               >
                 <ShieldCheck
                   className={`w-5 h-5 flex-shrink-0 ${
-                    summaryLight ? "text-emerald-600" : "text-emerald-400"
+                    summaryLight ? "text-blue-600" : "text-teal-400"
                   }`}
                 />
                 <p
@@ -4760,7 +4764,7 @@ export const BookingSystem = ({
                         <span className="font-medium">R{pricing.subtotal}</span>
                       </div>
                       {pricing.discountAmount > 0 && (
-                        <div className="flex justify-between text-emerald-600">
+                        <div className="flex justify-between text-blue-600">
                           <span className="opacity-80">
                             Discounts
                             {data.promoCode ? ` (${data.promoCode})` : ""}
@@ -4787,7 +4791,7 @@ export const BookingSystem = ({
               disabled={!canProceed()}
               className={`min-w-[140px] text-white font-bold py-3 px-6 rounded-xl shadow-lg disabled:opacity-50 ${
                 summaryLight
-                  ? "bg-neutral-900 hover:bg-neutral-800 shadow-neutral-900/15"
+                  ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
                   : "bg-blue-600 rounded-2xl shadow-xl shadow-blue-200"
               }`}
             >

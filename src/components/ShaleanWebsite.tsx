@@ -290,7 +290,7 @@ const Button = ({
     "px-6 py-3 rounded-full font-semibold transition-all duration-200 inline-flex items-center justify-center gap-2";
   const variants = {
     primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-md",
-    secondary: "bg-emerald-500 text-white hover:bg-emerald-600",
+    secondary: "bg-teal-500 text-white hover:bg-teal-600",
     outline: "border-2 border-blue-600 text-blue-600 hover:bg-blue-50",
     ghost: "text-slate-600 hover:text-blue-600 hover:bg-slate-100",
   };
@@ -361,7 +361,7 @@ const LocalSEOSection = ({
               </h2>
               <div className="space-y-4 text-slate-600 leading-relaxed">
                 <p>
-                  Bokkies proudly serves homeowners, landlords,
+                  Shalean Cleaning Services proudly serves homeowners, landlords,
                   and Airbnb hosts across all major Cape Town suburbs. From the
                   vibrant streets of{" "}
                   <strong className="text-slate-900">Sea Point</strong> and{" "}
@@ -479,12 +479,12 @@ const BlogPreviewSection = ({
               className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#BFDBFE] bg-white shadow-md transition hover:border-[#93C5FD]"
               onClick={() => onNavigate("blog")}
             >
-              <div className="relative aspect-[5/3] w-full shrink-0 sm:aspect-auto sm:min-h-[200px] sm:w-[30%] sm:min-w-[132px]">
+              <div className="relative aspect-[5/3] w-full shrink-0 overflow-hidden bg-slate-100">
                 <Image
                   src={post.img}
                   alt={post.title}
                   fill
-                  className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                  className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
                   sizes="(max-width: 768px) 100vw, 42vw"
                 />
               </div>
@@ -570,7 +570,7 @@ const TRUST_COLLAGE_BATHROOM_IMAGE =
   "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=800&q=80";
 
 const HERO_WHATSAPP_PREFILL = encodeURIComponent(
-  "Hi! I'd like to know more about Bokkies."
+  "Hi! I'd like to know more about Shalean Cleaning Services."
 );
 
 function heroWhatsAppHref(): string {
@@ -1427,10 +1427,10 @@ const HomePage = ({
 
       {/* FAQ Section — support + accordion (matches marketing layout) */}
       <section
-        className="border-t border-[#BFDBFE]/60 pt-14 pb-12 md:pt-20 md:pb-16"
+        className="border-t border-[#BFDBFE]/60 pt-14 pb-28 md:pt-20 md:pb-36"
         style={{ backgroundColor: HOME.background }}
       >
-        <div className="mx-auto w-full max-w-7xl px-6">
+        <div className="mx-auto w-full max-w-7xl px-6 sm:px-8">
           <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.35fr)] lg:gap-16 lg:items-start">
             <div className="max-w-md">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#14B8A6]">
@@ -1454,25 +1454,27 @@ const HomePage = ({
                 Contact support
               </Link>
             </div>
-            <div className="min-w-0 divide-y divide-[#BFDBFE]/80 border-y border-[#BFDBFE]/80">
-              {FAQS.map((faq, idx) => (
-                <details key={idx} className="group bg-white/80">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 pr-1 [&::-webkit-details-marker]:hidden">
-                    <span
-                      className="text-left text-base font-bold"
-                      style={{ color: HOME.textDark }}
-                    >
-                      {faq.q}
-                    </span>
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#BFDBFE] bg-white text-slate-400 transition-colors group-open:rotate-180 group-open:border-[#93C5FD]">
-                      <ChevronDown className="h-4 w-4 transition-transform duration-200" />
-                    </span>
-                  </summary>
-                  <div className="pb-5 pr-12 text-sm leading-relaxed text-slate-600">
-                    {faq.a}
-                  </div>
-                </details>
-              ))}
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-[#BFDBFE]/80 bg-white shadow-sm">
+              <div className="divide-y divide-[#BFDBFE]/80">
+                {FAQS.map((faq, idx) => (
+                  <details key={idx} className="group px-5 sm:px-7 md:px-8">
+                    <summary className="flex cursor-pointer list-none items-start gap-4 py-5 pr-[3.5rem] sm:pr-14 [&::-webkit-details-marker]:hidden">
+                      <span
+                        className="min-w-0 flex-1 text-left text-base font-bold leading-snug"
+                        style={{ color: HOME.textDark }}
+                      >
+                        {faq.q}
+                      </span>
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#BFDBFE] bg-white text-slate-400 transition-colors group-open:rotate-180 group-open:border-[#93C5FD]">
+                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                      </span>
+                    </summary>
+                    <div className="pb-5 pr-1 text-sm leading-relaxed text-slate-600 sm:pr-2">
+                      {faq.a}
+                    </div>
+                  </details>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1723,16 +1725,14 @@ export const ShaleanWebsite = () => {
   return (
     <div
       className={`min-h-screen flex flex-col font-sans text-slate-900 ${
-        currentPage === "booking"
-          ? "bg-[#F9F9F7]"
-          : currentPage === "home"
-            ? "bg-[#EFF6FF]"
-            : "bg-slate-100"
+        currentPage === "booking" || currentPage === "home"
+          ? "bg-[#EFF6FF]"
+          : "bg-slate-100"
       }`}
     >
       {/* Navigation */}
       {!isBookingConfirmed && isHomePage && (
-        <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/15 bg-[#2563EB] text-white">
+        <header className="fixed inset-x-0 top-0 z-50 border-b border-white/15 bg-primary text-primary-foreground">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between gap-4">
             <div className="flex items-center gap-8 lg:gap-12 min-w-0">
               <Link
@@ -1788,12 +1788,20 @@ export const ShaleanWebsite = () => {
                 Help
               </Link>
               {!isAuthenticated ? (
-                <Link
-                  href="/login"
-                  className="hidden sm:inline text-sm font-medium text-white/90 hover:text-white transition-colors"
-                >
-                  Log in
-                </Link>
+                <div className="hidden sm:flex items-center gap-4">
+                  <Link
+                    href="/login"
+                    className="text-sm font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="text-sm font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    Sign up
+                  </Link>
+                </div>
               ) : (
                 <div className="hidden sm:flex items-center">
                   <button
@@ -1875,8 +1883,8 @@ export const ShaleanWebsite = () => {
       )}
 
       {!isBookingConfirmed && !isHomePage && (
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-black border-b border-white/10 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+      <nav className="fixed inset-x-0 top-0 z-50 w-full border-b border-white/15 bg-primary text-primary-foreground shadow-sm">
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:gap-4 sm:px-6">
             {/* Brand */}
             <Link
               href="/"
@@ -1904,7 +1912,7 @@ export const ShaleanWebsite = () => {
             <div className="flex-1 flex justify-center min-w-0">
               {currentPage === "booking" ? (
                 <div
-                  className="hidden sm:flex items-center justify-center gap-1 sm:gap-2 max-w-xl w-full"
+                  className="hidden min-w-0 sm:flex sm:items-center sm:justify-center sm:gap-1.5 md:gap-2 lg:gap-3 max-w-4xl lg:max-w-5xl w-full"
                   role="list"
                   aria-label="Booking steps"
                 >
@@ -1923,32 +1931,35 @@ export const ShaleanWebsite = () => {
                     return (
                       <React.Fragment key={label}>
                         <div
-                          className="flex flex-col items-center gap-1 flex-1 min-w-0"
+                          className="flex w-[3.35rem] shrink-0 flex-col items-center gap-1 sm:w-16 md:w-[4.25rem]"
                           role="listitem"
                         >
                           <div
-                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-black transition-all ${
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[11px] font-black transition-all sm:h-9 sm:w-9 sm:text-xs ${
                               current
-                                ? "bg-white text-black"
+                                ? "border-white bg-white text-primary shadow-sm"
                                 : completed
-                                  ? "bg-[#86EFAC] text-neutral-900 border border-[#86EFAC]"
-                                  : "bg-white/10 text-white/70 border border-white/15"
+                                  ? "border-teal-400 bg-teal-500 text-white shadow-sm"
+                                  : "border-white/25 bg-white/15 text-white/90"
                             }`}
                             aria-current={current ? "step" : undefined}
                             aria-label={label}
                           >
                             {completed && !current ? (
-                              <CheckCircle2 className="w-4 h-4 sm:w-[18px] sm:h-[18px] stroke-[2.5]" />
+                              <CheckCircle2 className="h-4 w-4 stroke-[2.5] text-white sm:h-[18px] sm:w-[18px]" />
                             ) : (
                               idx + 1
                             )}
                           </div>
-                          <span className="hidden lg:block text-[8px] font-bold uppercase tracking-[0.12em] text-white/50 text-center truncate max-w-[4.5rem]">
+                          <span className="hidden max-w-[5rem] text-center text-[7px] font-bold uppercase leading-tight tracking-wide text-white/60 sm:block sm:text-[8px] lg:max-w-none lg:text-[9px] lg:tracking-[0.1em]">
                             {label}
                           </span>
                         </div>
                         {idx < 5 && (
-                          <div className="h-px w-2 sm:w-4 md:w-6 bg-white/15 self-start mt-[13px] sm:mt-[15px] flex-shrink-0" />
+                          <div
+                            className="hidden h-px w-2 shrink-0 bg-white/25 sm:block md:w-4 lg:w-6"
+                            aria-hidden
+                          />
                         )}
                       </React.Fragment>
                     );
@@ -1991,7 +2002,7 @@ export const ShaleanWebsite = () => {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                   router.push("/quote");
                 }}
-                className="hidden sm:inline-flex rounded-full bg-[#86EFAC] hover:bg-[#6fe89a] text-xs sm:text-sm font-bold px-3 sm:px-5 py-2 text-black shadow-sm transition-colors whitespace-nowrap"
+                className="hidden sm:inline-flex rounded-full bg-[#14B8A6] hover:bg-[#0D9488] text-xs sm:text-sm font-bold px-3 sm:px-5 py-2 text-white shadow-sm transition-colors whitespace-nowrap"
               >
                 Get Free Quote
               </button>
@@ -2194,19 +2205,32 @@ export const ShaleanWebsite = () => {
                 </>
               )}
               {!isAuthenticated && (
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    window.location.href = "/login";
-                  }}
-                  className={`text-left font-medium transition-colors ${
-                    isHomePage
-                      ? "text-white/90 hover:text-white"
-                      : "text-white/80 hover:text-white"
-                  }`}
-                >
-                  {isHomePage ? "Log in" : "Login or Sign Up"}
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      window.location.href = "/login";
+                    }}
+                    className={`text-left font-medium transition-colors ${
+                      isHomePage
+                        ? "text-white/90 hover:text-white"
+                        : "text-white/80 hover:text-white"
+                    }`}
+                  >
+                    {isHomePage ? "Log in" : "Login or Sign Up"}
+                  </button>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`text-left font-medium transition-colors ${
+                      isHomePage
+                        ? "text-white/90 hover:text-white"
+                        : "text-white/80 hover:text-white"
+                    }`}
+                  >
+                    Create account
+                  </Link>
+                </>
               )}
               <button
                 type="button"
@@ -2284,7 +2308,7 @@ export const ShaleanWebsite = () => {
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className="w-14 h-14 bg-emerald-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-emerald-600"
+            className="w-14 h-14 bg-teal-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-teal-600"
           >
             <Phone className="w-6 h-6" />
           </motion.button>
@@ -2313,7 +2337,7 @@ export const ShaleanWebsite = () => {
           >
             Book Now
           </Button>
-          <button className="bg-emerald-500 text-white p-4 rounded-full shadow-lg">
+          <button className="bg-teal-500 text-white p-4 rounded-full shadow-lg">
             <MessageSquare className="w-6 h-6" />
           </button>
         </div>

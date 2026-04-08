@@ -263,7 +263,7 @@ const BookingCard = ({
               isPaymentPending
                 ? "bg-amber-50 text-amber-700"
                 : s === "completed"
-                  ? "bg-emerald-50 text-emerald-600"
+                  ? "bg-blue-50 text-blue-600"
                   : s === "cancelled" || s === "failed"
                     ? "bg-rose-50 text-rose-600"
                     : "bg-blue-50 text-blue-600"
@@ -344,7 +344,7 @@ const BookingCard = ({
               {booking.needsPayment && booking.referenceForPay ? (
                 <a
                   href={`/booking/pay?ref=${encodeURIComponent(booking.referenceForPay)}`}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 shadow-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm"
                 >
                   <CreditCard className="w-4 h-4" /> Pay now
                 </a>
@@ -370,7 +370,7 @@ const BookingCard = ({
               return (
                 <>
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold">
+                    <div className="flex items-center gap-2 text-blue-600 text-sm font-bold">
                       <CheckCircle className="w-4 h-4" /> Service Completed
                     </div>
                     {booking.rating ? (
@@ -899,7 +899,7 @@ export const CustomerDashboard = ({
                                 {n.type === "upcoming" ? (
                                   <Calendar className="w-4 h-4 text-blue-500" />
                                 ) : n.type === "payment" ? (
-                                  <CreditCard className="w-4 h-4 text-emerald-500" />
+                                  <CreditCard className="w-4 h-4 text-blue-500" />
                                 ) : n.type === "message" ? (
                                   <MessageSquare className="w-4 h-4 text-indigo-500" />
                                 ) : (
@@ -983,7 +983,7 @@ export const CustomerDashboard = ({
                               {n.type === "upcoming" ? (
                                 <Calendar className="w-4 h-4 text-blue-500" />
                               ) : n.type === "payment" ? (
-                                <CreditCard className="w-4 h-4 text-emerald-500" />
+                                <CreditCard className="w-4 h-4 text-blue-500" />
                               ) : n.type === "message" ? (
                                 <MessageSquare className="w-4 h-4 text-indigo-500" />
                               ) : (
@@ -1251,7 +1251,7 @@ export const CustomerDashboard = ({
             className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm cursor-pointer hover:border-blue-200 transition-all"
             onClick={() => setActiveTab("wallet")}
           >
-            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-4">
+            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <h3 className="text-lg font-bold text-slate-900">Member Status</h3>
@@ -1707,15 +1707,15 @@ export const CustomerDashboard = ({
                     </p>
                     <ul className="mt-1 space-y-1.5 text-[11px] text-slate-500">
                       <li className="flex items-start gap-1.5">
-                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-blue-400" />
                         <span>Dusting and wiping of surfaces</span>
                       </li>
                       <li className="flex items-start gap-1.5">
-                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-blue-400" />
                         <span>Floors vacuumed and mopped</span>
                       </li>
                       <li className="flex items-start gap-1.5">
-                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-blue-400" />
                         <span>Bathrooms and kitchen refreshed</span>
                       </li>
                     </ul>
@@ -1892,7 +1892,7 @@ export const CustomerDashboard = ({
                         Your Shalean Wallet
                       </h3>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[11px] font-bold">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold">
                       <Sparkles className="w-3 h-3" />
                       Auto-billing active
                     </span>
@@ -1922,7 +1922,7 @@ export const CustomerDashboard = ({
                       <p className="text-xl font-black text-slate-900 mb-1">
                         {formatCurrency(monthlySummary.total || 0)}
                       </p>
-                      <p className="text-xs text-emerald-600 flex items-center gap-1">
+                      <p className="text-xs text-blue-600 flex items-center gap-1">
                         <ArrowLeft className="w-3 h-3 rotate-180" />
                         {monthlySummary.count} clean
                         {monthlySummary.count === 1 ? "" : "s"} completed
@@ -1932,7 +1932,7 @@ export const CustomerDashboard = ({
                       <p className="text-[11px] font-semibold text-slate-500 mb-1">
                         Credits & Rewards
                       </p>
-                      <p className="text-xl font-black text-emerald-600 mb-1">
+                      <p className="text-xl font-black text-blue-600 mb-1">
                         {walletLoading ? "…" : walletBalanceFormatted}
                       </p>
                       <p className="text-xs text-slate-500 flex items-center gap-1">
@@ -1972,7 +1972,7 @@ export const CustomerDashboard = ({
                               <p className="text-sm font-bold text-slate-900">
                                 {invoice.amount}
                               </p>
-                              <p className="text-[11px] font-semibold text-emerald-600">
+                              <p className="text-[11px] font-semibold text-blue-600">
                                 {invoice.status}
                               </p>
                             </div>
@@ -2003,7 +2003,7 @@ export const CustomerDashboard = ({
                           </p>
                         </div>
                       </div>
-                      <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                      <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
                         Default
                       </span>
                     </div>
@@ -2407,7 +2407,7 @@ export const CustomerDashboard = ({
                         <p className="text-sm font-semibold text-slate-900">
                           Primary Home
                         </p>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
                           Default
                         </span>
                       </div>

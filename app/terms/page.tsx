@@ -4,15 +4,15 @@ import Image from "next/image";
 import { SITE_URL } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Terms of service – Bokkies",
+  title: "Terms of service – Shalean Cleaning Services",
   description:
-    "Terms of service for using Bokkies cleaning and booking services in Cape Town.",
+    "Terms of service for using Shalean Cleaning Services cleaning and booking services in Cape Town.",
   alternates: { canonical: `${SITE_URL}/terms` },
   openGraph: {
     url: `${SITE_URL}/terms`,
-    title: "Terms of service – Bokkies",
+    title: "Terms of service – Shalean Cleaning Services",
     description:
-      "Terms of service for using Bokkies cleaning and booking services in Cape Town.",
+      "Terms of service for using Shalean Cleaning Services cleaning and booking services in Cape Town.",
     type: "website",
   },
 };
